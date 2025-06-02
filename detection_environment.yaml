@@ -1,0 +1,34 @@
+# detection_environment.yaml
+# Environment for YOLO-based pollen grain detection
+
+name: pollen_detection_env # Changed name to be specific
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  # PyTorch and related (Ultralytics/YOLO often uses PyTorch)
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=11.8 # Ensure this matches your HPC's CUDA driver version
+  # Ultralytics (for YOLO)
+  - ultralytics
+  # Core libraries for image processing, data handling, and utilities
+  - opencv
+  - numpy
+  - matplotlib # For visualization of detections, dataset analysis
+  - pillow # Image manipulation
+  - pyyaml # For configuration files (common with YOLO)
+  - tqdm # Progress bars
+  - pandas # For handling datasets, annotations if in CSV/Excel
+  - scikit-learn # For evaluation metrics or utility functions
+  # timm might be used by some YOLO backbones or for experimentation
+  # If you find it's not needed by your specific YOLO setup, you can remove it
+  # to keep the environment leaner.
+  - timm
+  - pip:
+

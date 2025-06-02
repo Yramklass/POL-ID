@@ -1,0 +1,30 @@
+# classification_environment.yaml
+# Environment for Swin Transformer / ConvNeXt based pollen grain classification
+
+name: pollen_classification_env 
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  # PyTorch and related (Essential for Swin/ConvNeXt)
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=11.8 # Ensure this matches your HPC's CUDA driver version
+  # Core libraries for image processing, data handling, and utilities
+  - opencv # For loading/processing cropped images
+  - numpy
+  - matplotlib # For visualization, plotting training curves
+  - scikit-learn # For evaluation metrics (confusion matrix, F1-score, etc.)
+  - pillow # Image manipulation
+  - pyyaml # For configuration files
+  - tqdm # Progress bars
+  - pandas # For handling datasets, results
+  # timm (PyTorch Image Models) - Crucial for Swin, ConvNeXt, and many other models
+  - timm
+  - pip:
+    
