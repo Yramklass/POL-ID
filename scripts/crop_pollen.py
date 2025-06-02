@@ -3,27 +3,16 @@ import json
 import random
 from PIL import Image
 
-
 # CONFIGURATION 
-# Get the absolute path of the directory where the current script is located
 script_directory = os.path.dirname(os.path.abspath(__file__))
-
-# Construct the BASE_DIR path by going one level up from the script's directory,
-# then into 'data', and then into 'classification'
-BASE_DIR = os.path.join(script_directory, "..", "data", "classification")
-# os.path.normpath will clean up the path (e.g., resolve "..")
-BASE_DIR = os.path.normpath(BASE_DIR)
+BASE_DIR = os.path.normpath(os.path.join(script_directory, "..", "data", "classification"))
 OUTPUT_DIR = os.path.join(BASE_DIR, "processed_crops")
 SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
 SEED = 42
 
-
 random.seed(SEED)
 
 def group_stacks(image_files):
-    """
-    Group image filenames into stacks using 'box' as the end-of-stack marker.
-    """
     stacks = []
     current_stack = []
     for fname in sorted(image_files):
@@ -35,20 +24,21 @@ def group_stacks(image_files):
         stacks.append(current_stack)
     return stacks
 
-def crop_and_save(image_path, annotations, output_subdir, image_id, image_name):
-    """
-    Crop bounding boxes from an image and save them into label-specific folders.
-    """
+def slugify(name):
+    return name.replace(" ", "_").replace("/", "_")
+
+def crop_and_save(image_path, annotations, output_subdir, image_id, image_name, id_to_category):
     image = Image.open(image_path)
     for ann in annotations:
         if ann["image_id"] == image_id:
             x, y, w, h = map(int, ann["bbox"])
             cropped = image.crop((x, y, x + w, y + h))
-            label = ann["category_id"]
-            category_dir = os.path.join(output_subdir, str(label))
-            os.makedirs(category_dir, exist_ok=True)
+            label_id = ann["category_id"]
+            label_name = slugify(id_to_category.get(label_id, f"unknown_{label_id}"))
+            label_dir = os.path.join(output_subdir, label_name)
+            os.makedirs(label_dir, exist_ok=True)
             crop_name = f"{os.path.splitext(image_name)[0]}_crop{ann['id']}.jpg"
-            cropped.save(os.path.join(category_dir, crop_name))
+            cropped.save(os.path.join(label_dir, crop_name))
 
 def main():
     for taxon_folder in os.listdir(BASE_DIR):
@@ -64,7 +54,9 @@ def main():
         with open(annotation_path) as f:
             coco = json.load(f)
 
+        id_to_category = {cat["id"]: cat["name"] for cat in coco["categories"]}
         image_id_map = {img["file_name"]: img["id"] for img in coco["images"]}
+
         annotations_by_image = {}
         for ann in coco["annotations"]:
             annotations_by_image.setdefault(ann["image_id"], []).append(ann)
@@ -88,8 +80,8 @@ def main():
                     if image_id is None:
                         continue
                     image_path = os.path.join(taxon_path, image_name)
-                    output_subdir = os.path.join(OUTPUT_DIR, split_name, taxon_folder)
-                    crop_and_save(image_path, coco["annotations"], output_subdir, image_id, image_name)
+                    output_subdir = os.path.join(OUTPUT_DIR, split_name)
+                    crop_and_save(image_path, coco["annotations"], output_subdir, image_id, image_name, id_to_category)
 
 if __name__ == "__main__":
     main()
