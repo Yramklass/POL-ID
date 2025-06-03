@@ -26,5 +26,7 @@ dependencies:
   - pandas # For handling datasets, results
   # timm (PyTorch Image Models) - Crucial for Swin, ConvNeXt, and many other models
   - timm
+  - seaborn
   - pip:
+
     
