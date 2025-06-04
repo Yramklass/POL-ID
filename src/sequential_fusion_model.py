@@ -4,22 +4,22 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-import timm # Make sure timm is installed: pip install timm
+import timm 
 import os
 import time
 import copy
-import matplotlib.pyplot as plt # For plotting training history
+import matplotlib.pyplot as plt 
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 try:
-    import seaborn as sns # For a nicer confusion matrix plot
+    import seaborn as sns 
     SEABORN_AVAILABLE = True
 except ImportError:
     SEABORN_AVAILABLE = False
     print("Seaborn not found. Confusion matrix will be printed as text.")
 
 
-# --- 1. Data Loading and Transforms ---
+# Data Loading and Transforms 
 
 # Standard ImageNet normalization
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -42,7 +42,7 @@ def get_data_transforms(img_size=IMG_SIZE):
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
         ]),
         'val': transforms.Compose([
-            transforms.Resize(img_size + 32), # e.g., 256 for 224 input
+            transforms.Resize(img_size + 32), 
             transforms.CenterCrop(img_size),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
@@ -56,7 +56,7 @@ def get_data_transforms(img_size=IMG_SIZE):
     }
     return data_transforms
 
-def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=4):
+def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=1):
     """
     Loads train, validation, and test data using ImageFolder and DataLoader.
     """
@@ -64,6 +64,7 @@ def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=4):
 
     print(f"Loading data from: {base_data_dir}")
     print(f"Using image size: {img_size}x{img_size}")
+    print(f"DataLoader num_workers: {num_workers}") 
 
     image_datasets = {}
     for x in ['train', 'val', 'test']:
@@ -72,9 +73,11 @@ def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=4):
             raise FileNotFoundError(f"Data directory for '{x}' not found at {data_path}")
         image_datasets[x] = datasets.ImageFolder(data_path, data_transforms[x])
 
+    # Ensure test loader is not shuffled for consistent evaluation
     dataloaders = {
-        x: DataLoader(image_datasets[x], batch_size=batch_size, shuffle=(x == 'train' if x != 'test' else False), num_workers=num_workers, pin_memory=True)
-        for x in ['train', 'val', 'test'] # Ensure test loader is not shuffled
+        'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True),
+        'val': DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True),
+        'test': DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
     }
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
     
@@ -89,7 +92,7 @@ def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=4):
     return dataloaders, dataset_sizes, class_names, num_classes
 
 
-# --- 2. Model Creation Function ---
+# Model Creation Function 
 
 def create_coatnet_model(num_classes, model_name='coatnet_1_rw_224', pretrained=True):
     """
@@ -103,7 +106,7 @@ def create_coatnet_model(num_classes, model_name='coatnet_1_rw_224', pretrained=
     )
     return model
 
-# --- 3. Training Function ---
+# Training Function 
 def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, scheduler, 
                 num_epochs=25, device=None, checkpoint_name='best_model.pth'):
     """
@@ -153,7 +156,7 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
                 running_corrects += torch.sum(preds == labels.data)
 
             if phase == 'train':
-                if scheduler: # Check if scheduler is provided
+                if scheduler: 
                     scheduler.step() 
 
             epoch_loss = running_loss / dataset_sizes[phase]
@@ -163,8 +166,10 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
             history[f'{phase}_acc'].append(epoch_acc.item())
 
             print(f'{phase.capitalize()} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
-            current_lr = optimizer.param_groups[0]['lr']
-            print(f'{phase.capitalize()} Current LR: {current_lr:.7f}')
+            if optimizer.param_groups: # Check if optimizer has param_groups
+                 current_lr = optimizer.param_groups[0]['lr']
+                 print(f'{phase.capitalize()} Current LR: {current_lr:.7f}')
+
 
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
@@ -180,13 +185,16 @@ def train_model(model, dataloaders, dataset_sizes, criterion, optimizer, schedul
     model.load_state_dict(best_model_wts)
     return model, history
 
-# --- 4. Plotting Function ---
-def plot_training_history(history, phase_name=""):
+# Plotting Function 
+def plot_training_history(history, phase_name="", output_dir="."):
     """Plots training and validation loss and accuracy."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
     
     title_prefix = f"{phase_name} " if phase_name else ""
     filename_prefix = phase_name.lower().replace(' ', '_') + "_" if phase_name else ""
+   
+    plot_save_path = os.path.join(output_dir, f"{filename_prefix}training_curves.png")
+
 
     ax1.plot(history['train_loss'], label='Train Loss')
     ax1.plot(history['val_loss'], label='Val Loss')
@@ -203,16 +211,12 @@ def plot_training_history(history, phase_name=""):
     ax2.legend()
 
     plt.tight_layout()
-    # Save plots in the script's directory or a specified output directory
-    # For HPC, ensure the script has write permissions to the save location.
-    # If running from /home/rmkyas002/pol_id/scripts, plots will save there.
-    plot_save_path = f"{filename_prefix}training_curves.png"
     plt.savefig(plot_save_path)
     print(f"Training curves saved to {plot_save_path}")
-    plt.close(fig) # Close the figure to free memory
+    plt.close(fig) 
 
-# --- 5. Evaluation Function ---
-def evaluate_model(model, dataloader, device, class_names, criterion=None):
+# Evaluation Function 
+def evaluate_model(model, dataloader, device, class_names, criterion=None, output_dir="."): 
     """
     Evaluates the model on a given dataloader and prints classification metrics.
     """
@@ -246,7 +250,6 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None):
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
-    # Calculate metrics
     accuracy = accuracy_score(all_labels, all_preds)
     precision_macro = precision_score(all_labels, all_preds, average='macro', zero_division=0)
     recall_macro = recall_score(all_labels, all_preds, average='macro', zero_division=0)
@@ -257,13 +260,12 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None):
     print(f"Macro Recall: {recall_macro:.4f}")
     print(f"Macro F1-Score: {f1_macro:.4f}")
 
-    # Confusion Matrix
     cm = confusion_matrix(all_labels, all_preds)
     print("\nConfusion Matrix:")
-    # Save confusion matrix plot in the script's directory or a specified output directory
-    cm_plot_save_path = 'confusion_matrix_test.png'
+    # Ensure confusion matrix plot is saved into the specified output_dir
+    cm_plot_save_path = os.path.join(output_dir, 'confusion_matrix_test.png')
     if SEABORN_AVAILABLE:
-        plt.figure(figsize=(max(8, len(class_names) * 0.8), max(6, len(class_names) * 0.6))) # Adjust size based on num_classes
+        plt.figure(figsize=(max(8, len(class_names) * 0.8), max(6, len(class_names) * 0.6))) 
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
         plt.xlabel('Predicted Label')
         plt.ylabel('True Label')
@@ -271,10 +273,9 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None):
         plt.tight_layout()
         plt.savefig(cm_plot_save_path)
         print(f"Confusion matrix plot saved to {cm_plot_save_path}")
-        plt.close() # Close the figure
+        plt.close() 
     else:
-        # Print text-based confusion matrix
-        header = "True\Pred | " + " | ".join(f"{name[:5]:<5}" for name in class_names)
+        header = "True\\Pred | " + " | ".join(f"{name[:5]:<5}" for name in class_names)
         print(header)
         print("-" * len(header))
         for i, row in enumerate(cm):
@@ -284,35 +285,26 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None):
     return accuracy, precision_macro, recall_macro, f1_macro, cm
 
 
-# --- Main Execution Block ---
+# Main Execution Block 
 if __name__ == '__main__':
-    # --- Configuration ---
-    # Local path
-    # script_dir = os.path.dirname(os.path.abspath(__file__))
-    # base_data_dir = os.path.normpath(os.path.join(script_dir, "..", "data", "classification", "processed_crops"))
-    # HPC specific path for data
-    # The data folder itself is 'processed_crops' and contains train/val/test
+    # Configuration 
     base_data_dir = "/scratch/rmkyas002/processed_crops" 
     
-    # Check if the HPC data directory exists
     if not os.path.isdir(base_data_dir):
         print(f"ERROR: HPC Data directory not found at '{base_data_dir}'")
-        print("Please ensure this path is correct and accessible on the HPC,")
-        print("and that it contains 'train', 'val', and 'test' subdirectories.")
         exit()
     
-    # Checkpoint and plot save directory (e.g., in your home or a project output folder)
-    # Assuming the script runs from /home/rmkyas002/pol_id/scripts/
-    # Save outputs in a subdirectory within the script's location for organization
     script_location_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(script_location_dir, "training_outputs")
-    os.makedirs(output_dir, exist_ok=True) # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True) 
     print(f"Checkpoints and plots will be saved in: {output_dir}")
 
 
     MODEL_NAME = 'coatnet_1_rw_224'
     BATCH_SIZE = 16 
-    NUM_WORKERS = min(os.cpu_count(), 4) # Or set to a specific number like 4 or 8 on HPC
+    NUM_WORKERS = 1 
+    print(f"Using NUM_WORKERS = {NUM_WORKERS} for DataLoaders.")
+
 
     # Phase 1: Train only the head
     LR_PHASE1 = 1e-3
@@ -325,7 +317,7 @@ if __name__ == '__main__':
     EPOCHS_PHASE2 = 30 
     CHECKPOINT_PHASE2 = os.path.join(output_dir, 'pollen_coatnet_phase2_full_best.pth')
 
-    # --- 1. Load Data ---
+    # Load Data 
     try:
         dataloaders, dataset_sizes, class_names, num_classes = load_data(
             base_data_dir, batch_size=BATCH_SIZE, img_size=IMG_SIZE, num_workers=NUM_WORKERS
@@ -334,18 +326,30 @@ if __name__ == '__main__':
         print(f"Error during data loading: {e}")
         exit()
 
-    # --- 2. Create Model ---
+    # Create Model 
     pollen_model = create_coatnet_model(num_classes=num_classes, model_name=MODEL_NAME)
     
-    # --- 3. Setup Device ---
+    # Setup Device & CUDA Diagnostics
+    print(f"\n--- Device Setup & CUDA Diagnostics ---")
+    print(f"Is CUDA available? {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"Current CUDA device index: {torch.cuda.current_device()}")
+        print(f"Number of CUDA devices: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+             print(f"Device {i} name: {torch.cuda.get_device_name(i)}")
+        print(f"PyTorch CUDA version: {torch.version.cuda}")
+        # print(f"CUDNN version: {torch.backends.cudnn.version()}") # Requires cudnn to be visible
+    else:
+        print("CUDA is NOT available. PyTorch will use CPU.")
+    
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     pollen_model.to(device)
-    print(f"\nModel '{MODEL_NAME}' loaded on device: {device}")
+    print(f"Model '{MODEL_NAME}' loaded on device: {device}")
 
-    # --- 4. Loss Function ---
+    # Loss Function 
     criterion = nn.CrossEntropyLoss()
 
-    # --- PHASE 1: Train the classifier head ---
+    # PHASE 1: Train the classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning classifier head ---")
     print(f"Epochs: {EPOCHS_PHASE1}, LR: {LR_PHASE1}")
 
@@ -375,15 +379,15 @@ if __name__ == '__main__':
         pollen_model, dataloaders, dataset_sizes, criterion, optimizer_phase1, scheduler_phase1,
         num_epochs=EPOCHS_PHASE1, device=device, checkpoint_name=CHECKPOINT_PHASE1
     )
-    plot_training_history(history_phase1, "Phase 1 Head Training") # Plots will save to output_dir
+    plot_training_history(history_phase1, "Phase 1 Head Training", output_dir=output_dir) 
     print("--- Finished Training Phase 1 ---")
 
-    # --- PHASE 2: Fine-tune the entire model ---
+    # PHASE 2: Fine-tune the entire model
     print(f"\n--- Starting Training Phase 2: Full model fine-tuning ---")
     print(f"Epochs: {EPOCHS_PHASE2}, Backbone LR: {LR_BACKBONE_PHASE2}, Head LR: {LR_HEAD_PHASE2}")
 
     print(f"Loading best weights from Phase 1: {CHECKPOINT_PHASE1}")
-    pollen_model.load_state_dict(torch.load(CHECKPOINT_PHASE1, map_location=device))
+    pollen_model.load_state_dict(torch.load(CHECKPOINT_PHASE1, map_location=device, weights_only=True))
     pollen_model.to(device) 
 
     for param in pollen_model.parameters():
@@ -422,16 +426,16 @@ if __name__ == '__main__':
         pollen_model, dataloaders, dataset_sizes, criterion, optimizer_phase2, scheduler_phase2,
         num_epochs=EPOCHS_PHASE2, device=device, checkpoint_name=CHECKPOINT_PHASE2
     )
-    plot_training_history(history_phase2, "Phase 2 Full Fine-tuning") # Plots will save to output_dir
+    plot_training_history(history_phase2, "Phase 2 Full Fine-tuning", output_dir=output_dir) 
     print("--- Finished Training Phase 2 ---")
 
-    # --- FINAL EVALUATION ON TEST SET ---
+    # FINAL EVALUATION ON TEST SET 
     print("\n--- Starting Final Evaluation on Test Set ---")
     print(f"Loading best weights from Phase 2 for testing: {CHECKPOINT_PHASE2}")
-    pollen_model.load_state_dict(torch.load(CHECKPOINT_PHASE2, map_location=device))
+    
+    pollen_model.load_state_dict(torch.load(CHECKPOINT_PHASE2, map_location=device, weights_only=True))
     pollen_model.to(device)
 
-    # Pass output_dir to save confusion matrix plot there
-    evaluate_model(pollen_model, dataloaders['test'], device, class_names, criterion) 
+    evaluate_model(pollen_model, dataloaders['test'], device, class_names, criterion, output_dir=output_dir) 
 
     print("\nFULL SCRIPT COMPLETE.")

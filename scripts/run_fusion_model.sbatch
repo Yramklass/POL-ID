@@ -4,16 +4,12 @@
 #SBATCH --job-name="POL_ID_Sequential_Fusion"
 #SBATCH --mail-user=rmkyas002@myuct.ac.za
 #SBATCH --mail-type=BEGIN,END,FAIL
-
+                         
 # Resource Allocation
-#SBATCH --nodes=1
-#SBATCH --ntasks=1             # Number of tasks (processes)
-#SBATCH --cpus-per-task=4      # Number of CPU cores per task. If your script can use more, increase this up to 40.
-#SBATCH --time=10:00:00        # Expected wall time (HH:MM:SS). Adjust as needed.
-                               # Start with a reasonable estimate, e.g., 1 hour: 01:00:00
-
-# Partition
-#SBATCH --partition=swan
+#SBATCH --account=l40sfree
+#SBATCH --partition=l40s
+#SBATCH --nodes=1 --ntasks=1 --gres=gpu:l40s:1
+#SBATCH --time=48:00:00
 
 # Output and error files 
 #SBATCH --output=fusion_output_%j.out
