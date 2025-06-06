@@ -34,13 +34,11 @@ python --version
 source activate pollen_classification_env
 
 # Navigate to Script Directory
-cd ~/pol_id/scripts/
+cd ~/pol_id/classification/src/sequential_fusion
 
 # Running Python Script
 echo "Running Python script: sequential_fusion_model.py"
 python sequential_fusion_model.py
 
-# Example if script takes a data path argument:
-# python ./scripts/sequential_fusion_model.py --data_path /scratch/rmkyas002/data
 
 echo "Job finished at $(date)"

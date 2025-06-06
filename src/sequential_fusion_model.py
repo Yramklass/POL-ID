@@ -262,7 +262,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
 
     cm = confusion_matrix(all_labels, all_preds)
     print("\nConfusion Matrix:")
-    # Ensure confusion matrix plot is saved into the specified output_dir
+    
     cm_plot_save_path = os.path.join(output_dir, 'confusion_matrix_test.png')
     if SEABORN_AVAILABLE:
         plt.figure(figsize=(max(8, len(class_names) * 0.8), max(6, len(class_names) * 0.6))) 
@@ -429,7 +429,7 @@ if __name__ == '__main__':
     plot_training_history(history_phase2, "Phase 2 Full Fine-tuning", output_dir=output_dir) 
     print("--- Finished Training Phase 2 ---")
 
-    # FINAL EVALUATION ON TEST SET 
+    # Final Evaluation on Test Set
     print("\n--- Starting Final Evaluation on Test Set ---")
     print(f"Loading best weights from Phase 2 for testing: {CHECKPOINT_PHASE2}")
     
