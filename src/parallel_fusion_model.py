@@ -115,16 +115,26 @@ class ParallelFusionModel(nn.Module):
         print(f"  Swin Transformer ({swin_model_name}) output features: {swin_feature_dim}")
         print(f"  Combined fusion features: {self.fusion_dim}")
         print(f"  Classifier for {num_classes} classes.")
-
-    def forward(self, x):
+        
+    def forward(self, x, return_embeddings=False):
+        """
+        Modified forward pass.
+        - If return_embeddings is False (default), it returns only the final classification logits.
+        - If return_embeddings is True, it returns both the logits and the fused feature vector.
+        """
         features_convnext = self.convnext_model(x)
         features_swin = self.swin_model(x)
-
-        # Concatenate features along the feature dimension (dim=1)
+        
+        # This is your feature embedding
         fused_features = torch.cat((features_convnext, features_swin), dim=1)
-
+        
+        # Final classification
         output = self.fusion_classifier(fused_features)
-        return output
+
+        if return_embeddings:
+            return output, fused_features
+        else:
+            return output
 
 def create_parallel_fusion_model(num_classes, convnext_model_name='convnext_tiny', swin_model_name='swin_tiny_patch4_window7_224', pretrained=True):
     """
