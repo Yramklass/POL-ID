@@ -27,8 +27,8 @@ RUN_NAME = "pollen_yolov8n_run1"
 OUTPUT_PATH = OUTPUT_PARENT_DIR / RUN_NAME
 
 # Model & Training Hyperparameters
-MODEL_CHOICE = 'yolov8n.pt'  # 'n' for nano, 's'/'m'/'l'/'x' for small/medium/large/extra-large
-EPOCHS = 100                 # Number of training epochs
+MODEL_CHOICE = 'yolo11n.pt'  # 'n' for nano, 's'/'m'/'l'/'x' for small/medium/large/extra-large
+EPOCHS = 300                 # Number of training epochs
 PATIENCE = 30
 IMAGE_SIZE = 640             # Target image size for training
 BATCH_SIZE = 16              # Number of images per batch (-1 for auto-batch)
