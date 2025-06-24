@@ -1,0 +1,22 @@
+# Environment file for full honey authentication pipeline
+name: full_pipeline_env
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - tqdm
+  - matplotlib
+  - seaborn
+  - opencv
+  - pillow
+  - torchvision
+  - pytorch
+  - umap-learn
+  - pip:
+      - ultralytics
+      - timm
+      - hdbscan
