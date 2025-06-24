@@ -11,6 +11,7 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from pathlib import Path
 try:
     import seaborn as sns
     SEABORN_AVAILABLE = True
@@ -33,62 +34,103 @@ def get_data_transforms(img_size=IMG_SIZE):
     """
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+            transforms.RandomResizedCrop(IMG_SIZE, scale=(0.7, 1.0)), # Crop more aggressively
             transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(45),
+            transforms.RandomVerticalFlip(),
+            transforms.RandomRotation(45), # Increase rotation
+            # Add strong color jittering
             transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.ToTensor(),
-            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
+            # Use normalization stats for ImageNet as a starting point
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            # Add Random Erasing, which hides parts of the image
+            transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),
         ]),
+        # Keep validation and test transforms simple
         'val': transforms.Compose([
-            transforms.Resize(img_size + 32),
-            transforms.CenterCrop(img_size),
+            transforms.Resize(256),
+            transforms.CenterCrop(IMG_SIZE),
             transforms.ToTensor(),
-            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'test': transforms.Compose([
-            transforms.Resize(img_size + 32),
-            transforms.CenterCrop(img_size),
+            transforms.Resize(256),
+            transforms.CenterCrop(IMG_SIZE),
             transforms.ToTensor(),
-            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
     }
     return data_transforms
 
-def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=1):
+def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_classes_to_use=None):
     """
     Loads train, validation, and test data using ImageFolder and DataLoader.
     """
-    data_transforms = get_data_transforms(img_size)
+    data_transforms = get_data_transforms(img_size) # Make sure this function is available
 
     print(f"Loading data from: {base_data_dir}")
     print(f"Using image size: {img_size}x{img_size}")
     print(f"DataLoader num_workers: {num_workers}")
 
+    # This remains a string, which is fine
+    image_path_str = os.path.join(base_data_dir, 'train')
+
+    # Get all class names (subdirectories) and sort them for reproducibility
+    # <-- 2. WRAP THE STRING IN Path() HERE
+    all_class_names = sorted([d.name for d in Path(image_path_str).iterdir() if d.is_dir()])
+
+    # If num_classes_to_use is specified, select a subset
+    if num_classes_to_use:
+        print(f"Using a subset of {num_classes_to_use} classes out of {len(all_class_names)}.")
+        class_names_to_use = all_class_names[:num_classes_to_use]
+    else:
+        class_names_to_use = all_class_names
+
+    # Create the full datasets first
+    full_datasets = {x: datasets.ImageFolder(os.path.join(base_data_dir, x), data_transforms[x])
+                     for x in ['train', 'val', 'test']}
+
+    # Get the mapping of the full dataset
+    class_to_idx = full_datasets['train'].class_to_idx
+
+    # Get the target indices for the classes we want to use
+    target_indices = {class_to_idx[class_name] for class_name in class_names_to_use if class_name in class_to_idx}
+
+    # Filter the datasets
     image_datasets = {}
-    for x in ['train', 'val', 'test']:
-        data_path = os.path.join(base_data_dir, x)
-        if not os.path.isdir(data_path):
-            raise FileNotFoundError(f"Data directory for '{x}' not found at {data_path}")
-        image_datasets[x] = datasets.ImageFolder(data_path, data_transforms[x])
+    for phase in ['train', 'val', 'test']:
+        original_samples = full_datasets[phase].samples
+        filtered_samples = [(path, idx) for path, idx in original_samples if idx in target_indices]
+        
+        full_datasets[phase].samples = filtered_samples
+        full_datasets[phase].classes = class_names_to_use
+        
+        old_to_new_idx_map = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted(list(target_indices)))}
+        
+        # Make sure to handle cases where a sample's class might not be in the map (should not happen with this logic but good practice)
+        full_datasets[phase].samples = [(path, old_to_new_idx_map[idx]) for path, idx in filtered_samples if idx in old_to_new_idx_map]
+        full_datasets[phase].targets = [s[1] for s in full_datasets[phase].samples]
+        full_datasets[phase].class_to_idx = {cls: i for i, cls in enumerate(class_names_to_use)}
+
+        image_datasets[phase] = full_datasets[phase]
 
     dataloaders = {
-        'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True),
-        'val': DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True),
-        'test': DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+        'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True,drop_last=True),
+        'val': DataLoader(image_datasets['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True,drop_last=True),
+        'test': DataLoader(image_datasets['test'], batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True,drop_last=True)
     }
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
 
     if not image_datasets['train'].classes:
-        raise ValueError("No classes found in the training dataset. Check your data directory structure.")
+        raise ValueError("No classes found in the training dataset after filtering. Check your data directory structure and num_classes_to_use.")
+    
     class_names = image_datasets['train'].classes
     num_classes = len(class_names)
 
-    print(f"Found {num_classes} classes: {', '.join(class_names)}")
+    print(f"Successfully loaded and filtered for {num_classes} classes: {', '.join(class_names)}")
     print(f"Dataset sizes: Train: {dataset_sizes['train']}, Val: {dataset_sizes['val']}, Test: {dataset_sizes['test']}")
 
     return dataloaders, dataset_sizes, class_names, num_classes
-
 
 # ParallelFusionModel Definition 
 class ParallelFusionModel(nn.Module):
@@ -109,6 +151,15 @@ class ParallelFusionModel(nn.Module):
         # Fusion layer and classifier
         self.fusion_dim = convnext_feature_dim + swin_feature_dim
         self.fusion_classifier = nn.Linear(self.fusion_dim, num_classes)
+        
+        combined_features_dim = self.fusion_dim
+        self.fusion_classifier = nn.Sequential(
+            nn.Linear(combined_features_dim, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.5), # <--- ADD STRONG DROPOUT HERE
+            nn.Linear(1024, num_classes)
+            )
 
         print(f"ParallelFusionModel initialized:")
         print(f"  ConvNext ({convnext_model_name}) output features: {convnext_feature_dim}")
@@ -334,30 +385,37 @@ if __name__ == '__main__':
     print(f"Checkpoints and plots will be saved in: {output_dir}")
 
     # Parallel Fusion Model Configuration
-    CONVNEXT_MODEL_NAME = 'convnext_tiny'
-    SWIN_MODEL_NAME = 'swin_tiny_patch4_window7_224' 
+    CONVNEXT_MODEL_NAME = 'convnext_small'
+    SWIN_MODEL_NAME = 'swin_small_patch4_window7_224' 
 
     BATCH_SIZE = 16
-    NUM_WORKERS = 2 
+    NUM_WORKERS = 1 
     print(f"Using NUM_WORKERS = {NUM_WORKERS} for DataLoaders.")
 
     # Phase 1: Train only the fusion head
     LR_PHASE1_FUSION_HEAD = 1e-3
-    EPOCHS_PHASE1 = 15 
+    EPOCHS_PHASE1 = 20 
     CHECKPOINT_PHASE1 = os.path.join(output_dir, 'pollen_parallel_fusion_phase1_head_best.pth')
 
     # Phase 2: Fine-tune the entire model (backbones + head)
-    LR_PHASE2_CONVNEXT = 1e-5
-    LR_PHASE2_SWIN = 1e-5
-    LR_PHASE2_FUSION_HEAD = 5e-5
-    EPOCHS_PHASE2 = 30 
+    LR_PHASE2_CONVNEXT = 1e-4
+    LR_PHASE2_SWIN = 1e-4
+    LR_PHASE2_FUSION_HEAD = 5e-4
+    EPOCHS_PHASE2 = 40 
     CHECKPOINT_PHASE2 = os.path.join(output_dir, 'pollen_parallel_fusion_phase2_full_best.pth')
 
+    NUM_CLASSES_TO_USE = None # or None to use all
     # Load Data
     try:
+    
         dataloaders, dataset_sizes, class_names, num_classes = load_data(
-            base_data_dir, batch_size=BATCH_SIZE, img_size=IMG_SIZE, num_workers=NUM_WORKERS
+            base_data_dir, 
+            batch_size=BATCH_SIZE, 
+            img_size=IMG_SIZE, 
+            num_workers=NUM_WORKERS,
+            num_classes_to_use=NUM_CLASSES_TO_USE # Pass the new parameter
         )
+        print(f"Successfully loaded and filtered data for {num_classes} classes.")
     except Exception as e:
         print(f"Error during data loading: {e}")
         exit()
@@ -388,7 +446,7 @@ if __name__ == '__main__':
     print(f"Parallel Fusion Model loaded on device: {device}")
 
     # Loss Function
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     # Phase 1: Train the fusion classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning fusion classifier head ---")
@@ -467,6 +525,13 @@ if __name__ == '__main__':
     )
     plot_training_history(history_phase2, "Phase 2 Full Fusion Fine-tuning", output_dir=output_dir)
     print("--- Finished Training Phase 2 ---")
+    
+    # Embed class names before saving final model
+    pollen_model.class_names = class_names
+
+    # Save full model with metadata
+    torch.save(pollen_model, os.path.join(output_dir, 'pollen_parallel_fusion_final_full.pth'))
+
 
     # Final Evaluation on Test Set
     print("\n--- Starting Final Evaluation on Test Set ---")
@@ -478,4 +543,6 @@ if __name__ == '__main__':
 
     evaluate_model(pollen_model, dataloaders['test'], device, class_names, criterion, output_dir=output_dir)
 
+
     print("\nFULL PARALLEL FUSION SCRIPT COMPLETE.")
+  

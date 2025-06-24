@@ -28,10 +28,12 @@ def group_stacks(image_files):
     sorted_image_files = sorted(image_files) 
 
     for fname in sorted_image_files:
-        current_stack.append(fname)
+        
         if "box" in fname.lower(): # Assuming "box" marks the end of a distinct slide/stack
             stacks.append(list(current_stack)) # Add a copy of the current stack
             current_stack = [] # Reset for the next stack
+        else:
+            current_stack.append(fname)
     
     # Add any remaining files as the last stack if it's not empty
     # This handles cases where the last sequence might not end with a "box" file,
@@ -100,13 +102,12 @@ def main():
         os.makedirs(os.path.join(OUTPUT_DIR, split_name), exist_ok=True)
     print(f"Created output directory structure in: {OUTPUT_DIR}")
 
-    all_stacks_info = [] # To store {'files': stack, 'taxon_name': taxon_folder, 'annotation_file': path, 'taxon_base_path': path}
-    all_taxon_labels_for_stratification = [] # Parallel list of taxon_names for stratification
+    from collections import defaultdict
+    taxon_to_stacks = defaultdict(list)
 
     print("Collecting image stacks from all taxa...")
     for taxon_folder_name in os.listdir(BASE_DIR):
         taxon_base_path = os.path.join(BASE_DIR, taxon_folder_name)
-        # Skip the output directory itself and any non-directory files
         if taxon_folder_name == os.path.basename(OUTPUT_DIR) or not os.path.isdir(taxon_base_path):
             continue
 
@@ -121,106 +122,74 @@ def main():
             print(f"    Annotation file 'instances_default.json' not found in {taxon_folder_name}, skipping.")
             continue
 
-        # Group images from this taxon into stacks
         stacks_from_taxon = group_stacks(image_files_in_taxon)
         if not stacks_from_taxon:
             print(f"    No stacks formed for taxon {taxon_folder_name}, skipping.")
             continue
-            
+
         print(f"    Found {len(stacks_from_taxon)} stacks for taxon {taxon_folder_name}.")
 
+        slug = slugify(taxon_folder_name)
         for stack in stacks_from_taxon:
-            all_stacks_info.append({
-                'files': stack, # List of image filenames in this stack
-                'taxon_name': slugify(taxon_folder_name), # The true taxon this stack belongs to (slugified)
-                'annotation_file': annotation_file_path, # Path to its annotation file
-                'taxon_base_path': taxon_base_path # Path to the original taxon folder
+            taxon_to_stacks[slug].append({
+                'files': stack,
+                'taxon_name': slug,
+                'annotation_file': annotation_file_path,
+                'taxon_base_path': taxon_base_path
             })
-            all_taxon_labels_for_stratification.append(slugify(taxon_folder_name)) # Use slugified for stratification consistency
 
-    if not all_stacks_info:
-        print("No image stacks collected from any taxa. Please check your data structure and BASE_DIR.")
-        return
+    # Filter out taxa with < 3 stacks
+    taxon_to_stacks = {k: v for k, v in taxon_to_stacks.items() if len(v) >= 3}
+    print(f"\nTotal valid taxa with >= 3 stacks: {len(taxon_to_stacks)}")
 
-    print(f"\nTotal stacks collected from all taxa: {len(all_stacks_info)}")
-    unique_taxa_for_strat = sorted(list(set(all_taxon_labels_for_stratification)))
-    print(f"Unique taxa for stratification ({len(unique_taxa_for_strat)}): {', '.join(unique_taxa_for_strat)}")
+    # Split each taxon into train/val/test
+    train_stacks, val_stacks, test_stacks = [], [], []
+    from math import floor
 
+    for taxon, stacks in taxon_to_stacks.items():
+        random.shuffle(stacks)
+        n = len(stacks)
 
-    # Stratified splitting
-    # First, split into (train + val) and test
-    # Check if all_taxon_labels_for_stratification is not empty before using np.unique
-    if not all_taxon_labels_for_stratification:
-        print("Error: No taxon labels available for stratification. Cannot proceed with splitting.")
-        return
-        
-    min_samples_per_class = min(np.unique(all_taxon_labels_for_stratification, return_counts=True)[1])
-    
-    # Simplified check: if any class has only 1 stack, stratification might be tricky for 3 splits.
-    # sklearn's train_test_split needs at least 2 samples (stacks in our case) per class for stratification 
-    # if we are creating more than one split from it (e.g., train and test, or train and val).
-    if min_samples_per_class < 2 and (SPLIT_RATIOS["val"] > 0 or SPLIT_RATIOS["test"] > 0) : 
-         print(f"Warning: Some classes have only {min_samples_per_class} stack(s). Stratification might be imperfect or fail if a split size becomes 0 for a class.")
-         print("Consider merging small classes or ensuring each class has at least 2 stacks for robust splitting if val/test sets are desired.")
+        # Ensure at least 1 stack per split
+        n_train = max(1, floor(n * SPLIT_RATIOS['train']))
+        n_val = max(1, floor(n * SPLIT_RATIOS['val']))
+        n_test = n - (n_train + n_val)
 
-    print(f"\nSplitting {len(all_stacks_info)} stacks into train/val/test sets...")
-    try:
-        # Split into (train+val) and test
-        # Ensure there are enough samples overall for the first split
-        if len(all_stacks_info) < 2 : # train_test_split needs at least 2 samples
-            print("Error: Not enough total stacks (<2) to perform train/test split.")
-            return
+        # If test gets < 1, borrow from val (or train)
+        if n_test < 1:
+            n_test = 1
+            if n_val > 1:
+                n_val -= 1
+            elif n_train > 1:
+                n_train -= 1
 
-        train_val_stacks_info, test_stacks_info, \
-        train_val_labels, _ = train_test_split(
-            all_stacks_info, 
-            all_taxon_labels_for_stratification,
-            test_size=SPLIT_RATIOS["test"],
-            stratify=all_taxon_labels_for_stratification,
-            random_state=SEED
-        )
+        # Final safeguard if still imbalanced
+        total = n_train + n_val + n_test
+        if total < n:
+            n_train += (n - total)  # Priority: train > test > val
 
-        # Calculate relative validation size for the second split
-        if SPLIT_RATIOS["train"] + SPLIT_RATIOS["val"] == 0: 
-            relative_val_size = 0
-            if SPLIT_RATIOS["val"] > 0: 
-                 print("Warning: val_ratio > 0 but train_ratio + val_ratio = 0. Setting val_size to 0 for second split.")
-        else:
-            relative_val_size = SPLIT_RATIOS["val"] / (SPLIT_RATIOS["train"] + SPLIT_RATIOS["val"])
+        # Assign
+        train_stacks += stacks[:n_train]
+        val_stacks += stacks[n_train:n_train + n_val]
+        test_stacks += stacks[n_train + n_val:n_train + n_val + n_test]
 
-        if relative_val_size > 0 and len(train_val_stacks_info) > 1 : # train_test_split needs at least 2 samples for the set being split
-             # Split (train+val) into train and val
-            train_stacks_info, val_stacks_info, _, _ = train_test_split(
-                train_val_stacks_info,
-                train_val_labels, 
-                test_size=relative_val_size,
-                stratify=train_val_labels,
-                random_state=SEED
-            )
-        elif len(train_val_stacks_info) > 0: 
-            train_stacks_info = train_val_stacks_info
-            val_stacks_info = [] 
-            if relative_val_size > 0:
-                print("Warning: Not enough samples in train_val set to create a validation split, all assigned to train.")
-            else:
-                print("Validation set size is 0 based on ratios.")
-        else: 
-            train_stacks_info = []
-            val_stacks_info = []
-
-
-    except ValueError as e:
-        print(f"Error during stratified splitting: {e}")
-        print("This can happen if a class has too few samples (stacks) for the specified split ratios,")
-        print("or if the total number of samples is too small for the splits.")
-        print("Ensure each class intended for splitting has at least 2 stacks.")
-        return
+        # Debug print per-taxon split
+        print(f"Taxon '{taxon}': total {n} → train: {n_train}, val: {n_val}, test: {n_test}")
 
     splits_map = {
-        "train": train_stacks_info,
-        "val": val_stacks_info,
-        "test": test_stacks_info
+        "train": train_stacks,
+        "val": val_stacks,
+        "test": test_stacks
     }
+    def count_taxa_in_split(stacks_list):
+        return set(stack['taxon_name'] for stack in stacks_list)
+
+    print("\n--- Taxon Coverage per Split ---")
+    print(f"Train: {len(count_taxa_in_split(train_stacks))} taxa")
+    print(f"Val:   {len(count_taxa_in_split(val_stacks))} taxa")
+    print(f"Test:  {len(count_taxa_in_split(test_stacks))} taxa")
+    print("---------------------------------")
+
 
     print("\nProcessing and saving crops for each split...")
     for split_name, stacks_in_split in splits_map.items():
@@ -230,7 +199,7 @@ def main():
             continue
             
         output_subdir_for_split = os.path.join(OUTPUT_DIR, split_name)
-        
+
         for stack_info in stacks_in_split:
             stack_files = stack_info['files']
             annotation_file = stack_info['annotation_file']
@@ -245,25 +214,27 @@ def main():
             
             id_to_category_map = {cat["id"]: cat["name"] for cat in coco_data.get("categories", [])}
             image_id_map = {img["file_name"]: img["id"] for img in coco_data.get("images", [])}
-            
             annotations_by_img_id = {}
             for ann in coco_data.get("annotations", []):
                 annotations_by_img_id.setdefault(ann["image_id"], []).append(ann)
 
             for image_filename_in_stack in stack_files:
                 image_id = image_id_map.get(image_filename_in_stack)
-                
+                if image_id is None:
+                    print(f"    Warning: Image {image_filename_in_stack} not found in annotation JSON. Skipping.")
+                    continue
+
                 annotations_for_current_image = annotations_by_img_id.get(image_id, [])
                 if not annotations_for_current_image:
                     continue 
 
                 image_full_path = os.path.join(taxon_base_path, image_filename_in_stack)
-                
                 crop_and_save(image_full_path, annotations_for_current_image, 
                               output_subdir_for_split, image_filename_in_stack, id_to_category_map)
-    
+
     print("\nCropping and splitting process complete.")
     print_dataset_summary(OUTPUT_DIR)
+
 
 
 def print_dataset_summary(output_dir):
