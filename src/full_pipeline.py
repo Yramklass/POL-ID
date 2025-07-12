@@ -15,14 +15,31 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
+import sys
 
 
-# Configuration 
+
+
+# Configuration  -- change to allow processing several folders, saving outputs into separate folders, running on HPC
 IMG_SIZE = 224  
 YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/nano/epoch_100/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
 CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/75/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
-SLIDES_DIR = "/home/yash/POL-ID/data/detection/29286575"
+SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Get folder name (e.g. "HS095") from input path
+input_name = os.path.basename(os.path.normpath(SLIDES_DIR))
+
+# Define output path
+base_output_dir = "/home/yash/POL-ID/outputs/clustering_outputs"
+output_dir = os.path.join(base_output_dir, input_name)
+os.makedirs(output_dir, exist_ok=True)
+
+# Redirect stdout to output file
+log_file_path = os.path.join(output_dir, f"{input_name}.out")
+sys.stdout = open(log_file_path, 'w')
+
+
 
 # ParallelFusionModel Definition 
 class ParallelFusionModel(nn.Module):
@@ -79,7 +96,7 @@ class ParallelFusionModel(nn.Module):
         else:
             return output
 
-CONFIDENCE_THRESHOLD = 0.7  # Below this, trigger clustering
+CONFIDENCE_THRESHOLD = 0.2  # Below this, trigger clustering
 CROP_PADDING = 10  # Pixels to pad around detected pollen grains
 
 # Preprocessing 
@@ -155,10 +172,6 @@ for file in tqdm(os.listdir(SLIDES_DIR)):
 
 # Cluster Unknown Grains
 cluster_summary = defaultdict(int)
-
-# Create a directory to save cluster images
-output_dir = "/home/yash/POL-ID/outputs/clustering_outputs"
-os.makedirs(output_dir, exist_ok=True)
 
 
 if low_conf_embeddings:
@@ -244,3 +257,7 @@ for cluster_name, count in cluster_summary.items():
     print(f"{cluster_name:<20} | Count: {count:<3} | {100 * count / total:.1f}%")
 
 print(f"Total pollen grains analyzed: {total}")
+# Optional: Close the redirected stdout to flush file
+sys.stdout.close()
+sys.stdout = sys.__stdout__
+print("Pipeline complete.")
