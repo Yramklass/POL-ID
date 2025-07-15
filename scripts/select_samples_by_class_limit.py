@@ -1,9 +1,20 @@
 import pandas as pd
 import argparse
+from contextlib import redirect_stdout
+import sys
 
-def select_samples_with_class_limit(csv_path, max_classes):
-    # Load CSV
+def convert_taxon_name(taxon):
+    """Convert taxon names from CSV format to data folder format.
+    Example: 'Erica sp. 1' -> 'Erica_sp1'"""
+    if ' sp. ' in taxon:
+        # Replace ' sp. ' with '_sp' and remove space before number
+        return taxon.replace(' sp. ', '_sp')
+    return taxon
+
+def select_samples_with_class_limit(csv_path, max_classes, output_file=None):
+    # Load CSV and convert taxon names
     df = pd.read_csv(csv_path)
+    df['Taxon'] = df['Taxon'].apply(convert_taxon_name)
 
     # Build a dict: sample -> set of taxa
     sample_to_taxa = df.groupby("Sample")["Taxon"].apply(set).to_dict()
@@ -21,15 +32,26 @@ def select_samples_with_class_limit(csv_path, max_classes):
             selected_samples.append(sample)
             included_taxa.update(taxa_set)
 
-    # Final output
-    print(f"✅ Selected {len(selected_samples)} samples")
-    print(f"🔢 Total unique taxa: {len(included_taxa)}")
-    print(f"\n📦 Samples to include:")
-    for s in selected_samples:
-        print(f"  - {s}")
-    print(f"\n🌿 Taxa to include:")
-    for t in sorted(included_taxa):
-        print(f"  - {t}")
+    # Prepare output
+    output_lines = [
+        f"#✅ Selected {len(selected_samples)} samples",
+        f"#🔢 Total unique taxa: {len(included_taxa)}",
+        "\n#📦 Samples to include:"
+    ]
+    output_lines.extend(f"#  - {s}" for s in selected_samples)
+    output_lines.extend([
+        "\n#🌿 Taxa to include:",
+        *sorted(included_taxa)
+    ])
+
+    # Output to console
+    print('\n'.join(output_lines))
+
+    # Save to file if requested
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write('\n'.join(output_lines))
+        print(f"\n#💾 Output saved to {output_file}")
 
     return selected_samples, included_taxa
 
@@ -39,6 +61,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Select samples constrained by max number of taxa.")
     parser.add_argument("csv", help="Path to expert_compositions.csv")
     parser.add_argument("max_classes", type=int, help="Maximum number of taxa allowed")
+    parser.add_argument("--output", "-o", default="classes_to_include.txt", 
+                       help="Output file path (default: classes_to_include.txt)")
     args = parser.parse_args()
 
-    select_samples_with_class_limit(args.csv, args.max_classes)
+    select_samples_with_class_limit(args.csv, args.max_classes, args.output)

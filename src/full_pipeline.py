@@ -23,7 +23,7 @@ import sys
 # Configuration  -- change to allow processing several folders, saving outputs into separate folders, running on HPC
 IMG_SIZE = 224  
 YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/nano/epoch_100/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
-CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/75/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
+CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
 SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

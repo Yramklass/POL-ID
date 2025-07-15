@@ -213,7 +213,7 @@ def main():
                 continue
             
             id_to_category_map = {cat["id"]: cat["name"] for cat in coco_data.get("categories", [])}
-            image_id_map = {img["file_name"]: img["id"] for img in coco_data.get("images", [])}
+            image_id_map = {os.path.basename(img["file_name"]): img["id"] for img in coco_data.get("images", [])}
             annotations_by_img_id = {}
             for ann in coco_data.get("annotations", []):
                 annotations_by_img_id.setdefault(ann["image_id"], []).append(ann)
