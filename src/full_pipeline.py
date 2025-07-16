@@ -23,7 +23,7 @@ import sys
 # Configuration  -- change to allow processing several folders, saving outputs into separate folders, running on HPC
 IMG_SIZE = 224  
 YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/nano/epoch_100/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
-CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
+CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35_new/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
 SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -249,14 +249,27 @@ if low_conf_embeddings:
 # Final Composition Report 
 print("\n===== HONEY COMPOSITION REPORT =====")
 total = sum(predictions_summary.values()) + sum(cluster_summary.values())
+dominant_classes = []
 
 for class_name, count in predictions_summary.items():
-    print(f"{class_name:<20} | Count: {count:<3} | {100 * count / total:.1f}%")
+    percent_representation = 100 * count / total
+    print(f"{class_name:<20} | Count: {count:<3} | {percent_representation:.1f}%")
+    if percent_representation >= 45:
+        dominant_classes.append(class_name)
+
+if len(dominant_classes) == 1:
+    honey_type = f"Monofloral {dominant_classes[0]}"
+else:
+    honey_type = "Multifloral"
+
+            
 
 for cluster_name, count in cluster_summary.items():
     print(f"{cluster_name:<20} | Count: {count:<3} | {100 * count / total:.1f}%")
 
 print(f"Total pollen grains analyzed: {total}")
+print(f"Dominant taxa (>45% representation): {dominant_classes}")
+print(f"Honey type: {honey_type}")
 # Optional: Close the redirected stdout to flush file
 sys.stdout.close()
 sys.stdout = sys.__stdout__

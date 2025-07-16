@@ -34,16 +34,15 @@ def get_data_transforms(img_size=IMG_SIZE):
     """
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomResizedCrop(IMG_SIZE, scale=(0.7, 1.0)), # Crop more aggressively
+            transforms.RandomResizedCrop(IMG_SIZE, scale=(0.7, 1.0)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
-            transforms.RandomRotation(45), # Increase rotation
-            # Add strong color jittering
-            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            transforms.TrivialAugmentWide(), # <-- ADD THIS LINE
+            # You might want to reduce the intensity of your other transforms if you use this
+            # transforms.RandomRotation(45), # Maybe remove or reduce this
+            # transforms.ColorJitter(brightness=0.3, ...), # Maybe remove or reduce this
             transforms.ToTensor(),
-            # Use normalization stats for ImageNet as a starting point
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            # Add Random Erasing, which hides parts of the image
+            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),
         ]),
         # Keep validation and test transforms simple
@@ -66,40 +65,33 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
     """
     Loads train, validation, and test data using ImageFolder and DataLoader.
     
-    Can filter classes based on a provided text file (class_list_file) which takes
-    precedence, or by taking the first `num_classes_to_use`.
+    This version is corrected to prevent label mismatch between train/val/test splits.
     """
     data_transforms = get_data_transforms(img_size)
-
+    
     print(f"Loading data from: {base_data_dir}")
     print(f"Using image size: {img_size}x{img_size}")
     print(f"DataLoader num_workers: {num_workers}")
-
-    image_path_str = os.path.join(base_data_dir, 'train')
     
-    # Get all class names (subdirectories) and sort them for reproducibility
-    all_class_names = sorted([d.name for d in Path(image_path_str).iterdir() if d.is_dir()])
-
-    # --- MODIFIED LOGIC TO DETERMINE WHICH CLASSES TO USE ---
+    # Determine the classes to use from the 'train' directory
+    train_dir = Path(base_data_dir) / 'train'
+    all_class_names = sorted([d.name for d in train_dir.iterdir() if d.is_dir()])
+    
     class_names_to_use = []
     if class_list_file:
-        class_file_path = os.path.join(base_data_dir, class_list_file)
-        print(f"Attempting to read specific class list from: {class_file_path}")
-        if not os.path.exists(class_file_path):
+        class_file_path = Path(base_data_dir) / class_list_file
+        print(f"Reading specific class list from: {class_file_path}")
+        if not class_file_path.exists():
             raise FileNotFoundError(f"Specified class list file not found: {class_file_path}")
         
         with open(class_file_path, 'r') as f:
-            # Read class names, stripping whitespace and ignoring empty lines
-            requested_classes = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+            requested_classes = {line.strip() for line in f if line.strip() and not line.strip().startswith('#')}
         
-        # Validate that the requested classes exist in the dataset directory
-        available_classes_set = set(all_class_names)
-        class_names_to_use = [cls for cls in requested_classes if cls in available_classes_set]
-        
-        missing_classes = set(requested_classes) - set(class_names_to_use)
+        # Filter all_class_names based on the requested list
+        class_names_to_use = [cls for cls in all_class_names if cls in requested_classes]
+        missing_classes = requested_classes - set(class_names_to_use)
         if missing_classes:
-            print(f"\nWarning: The following requested classes were not found in the directory and will be ignored:")
-            print(f" -> {', '.join(missing_classes)}\n")
+            print(f"\nWarning: Requested classes not found and ignored: {', '.join(missing_classes)}\n")
 
     elif num_classes_to_use:
         print(f"Using the first {num_classes_to_use} available classes.")
@@ -107,39 +99,41 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
     else:
         print("Using all available classes found in the directory.")
         class_names_to_use = all_class_names
-    # --- END OF MODIFIED LOGIC ---
 
     if not class_names_to_use:
-        raise ValueError("No classes selected for training. Check your `class_list_file` or `num_classes_to_use` setting.")
-
-    # Create the full datasets first
-    full_datasets = {x: datasets.ImageFolder(os.path.join(base_data_dir, x), data_transforms[x])
-                     for x in ['train', 'val', 'test']}
-
-    # Get the mapping of the full dataset
-    class_to_idx = full_datasets['train'].class_to_idx
-
-    # Get the target indices for the classes we want to use
-    target_indices = {class_to_idx[class_name] for class_name in class_names_to_use if class_name in class_to_idx}
-
-    # Filter the datasets
+        raise ValueError("No classes selected for training.")
+        
+    # Create the canonical (single source of truth) class_to_idx mapping 
+    class_to_idx = {class_name: i for i, class_name in enumerate(class_names_to_use)}
+    num_classes = len(class_names_to_use)
+    
     image_datasets = {}
     for phase in ['train', 'val', 'test']:
-        original_samples = full_datasets[phase].samples
-        filtered_samples = [(path, idx) for path, idx in original_samples if idx in target_indices]
-        
-        full_datasets[phase].samples = filtered_samples
-        # Important: The classes must be sorted to ensure consistent mapping
-        full_datasets[phase].classes = sorted(class_names_to_use) 
-        
-        # Create a new mapping from the old index to a new, continuous index (0, 1, 2...)
-        old_to_new_idx_map = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted(list(target_indices)))}
-        
-        full_datasets[phase].samples = [(path, old_to_new_idx_map[idx]) for path, idx in filtered_samples if idx in old_to_new_idx_map]
-        full_datasets[phase].targets = [s[1] for s in full_datasets[phase].samples]
-        full_datasets[phase].class_to_idx = {cls: i for i, cls in enumerate(sorted(class_names_to_use))}
+        phase_dir = Path(base_data_dir) / phase
+        # Manually collect all image paths and their correct integer labels
+        samples = []
+        for class_name in class_names_to_use:
+            class_dir = phase_dir / class_name
+            if class_dir.is_dir():
+                label = class_to_idx[class_name]
+                for img_path in class_dir.glob('*'): # You might want to filter for .jpg, .png, etc.
+                    if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tif']:
+                        samples.append((str(img_path), label))
 
-        image_datasets[phase] = full_datasets[phase]
+        # Create a dataset from the manually collected samples
+        # We use a base DatasetFolder and provide our own loader and sample list
+        # This ensures the labels are 100% consistent across all splits.
+        dataset = datasets.DatasetFolder(
+            root=str(phase_dir.parent), # Root is the base data dir
+            loader=datasets.folder.default_loader, # Standard image loader
+            extensions=('.jpg', '.jpeg', '.png', '.tif'),
+            transform=data_transforms[phase]
+        )
+        dataset.samples = samples
+        dataset.classes = class_names_to_use
+        dataset.class_to_idx = class_to_idx
+        dataset.targets = [s[1] for s in samples]
+        image_datasets[phase] = dataset
 
     dataloaders = {
         'train': DataLoader(image_datasets['train'], batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True, drop_last=True),
@@ -148,16 +142,10 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
     }
     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val', 'test']}
 
-    if not image_datasets['train'].classes:
-        raise ValueError("No classes found in the training dataset after filtering. Check your data directory structure and class list file.")
-    
-    class_names = image_datasets['train'].classes
-    num_classes = len(class_names)
-
-    print(f"\nSuccessfully loaded and filtered for {num_classes} classes: {', '.join(class_names)}")
+    print(f"\nSuccessfully loaded and filtered for {num_classes} classes: {', '.join(class_names_to_use)}")
     print(f"Dataset sizes: Train: {dataset_sizes['train']}, Val: {dataset_sizes['val']}, Test: {dataset_sizes['test']}")
 
-    return dataloaders, dataset_sizes, class_names, num_classes
+    return dataloaders, dataset_sizes, class_names_to_use, num_classes
 
 # ParallelFusionModel Definition 
 class ParallelFusionModel(nn.Module):
