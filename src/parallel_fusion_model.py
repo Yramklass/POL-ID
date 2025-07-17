@@ -37,10 +37,9 @@ def get_data_transforms(img_size=IMG_SIZE):
             transforms.RandomResizedCrop(IMG_SIZE, scale=(0.7, 1.0)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomVerticalFlip(),
-            transforms.TrivialAugmentWide(), # <-- ADD THIS LINE
-            # You might want to reduce the intensity of your other transforms if you use this
-            # transforms.RandomRotation(45), # Maybe remove or reduce this
-            # transforms.ColorJitter(brightness=0.3, ...), # Maybe remove or reduce this
+            # transforms.TrivialAugmentWide(), # Auto-augmentation- reduced accuracy
+            transforms.RandomRotation(45), 
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),

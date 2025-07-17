@@ -36,9 +36,9 @@ BATCH_SIZE = 16              # Number of images per batch (-1 for auto-batch)
 
 def main():
     """
-    Main function to run the YOLOv8 training and evaluation pipeline.
+    Main function to run the YOLO training and evaluation pipeline.
     """
-    print("--- YOLOv8 Pollen Detector Training ---")
+    print("--- YOLO Pollen Detector Training ---")
     
     # Setup and Pre-checks
     
