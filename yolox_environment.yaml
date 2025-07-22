@@ -1,0 +1,26 @@
+# Save this as environment.yml
+name: yolox_mmdet_env
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  # --- Pytorch with specific CUDA 11.8 support ---
+  - pytorch=2.1.2
+  - torchvision=0.16.2
+  - torchaudio=2.1.2
+  - pytorch-cuda=11.8 # This is the critical line
+  # --- Other dependencies ---
+  - cython
+  - matplotlib
+  - pycocotools
+  - tqdm
+  - openmim
+  # - pip:
+  #   # Manual install all
+  #   - --user mmcv==2.1.0
+  #   - --user mmdet==3.3.0
+  #   - --user label-studio-sdk
+  #   - --user pyarrow

@@ -39,7 +39,7 @@ def get_data_transforms(img_size=IMG_SIZE):
             transforms.RandomVerticalFlip(),
             # transforms.TrivialAugmentWide(), # Auto-augmentation- reduced accuracy
             transforms.RandomRotation(45), 
-            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),
@@ -148,7 +148,7 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
 
 # ParallelFusionModel Definition 
 class ParallelFusionModel(nn.Module):
-    def __init__(self, num_classes, convnext_model_name='convnext_tiny', swin_model_name='swin_tiny_patch4_window7_224', pretrained=True):
+    def __init__(self, num_classes, convnext_model_name='convnext_small', swin_model_name='swin_small_patch4_window7_224', pretrained=True):
         super().__init__()
         self.convnext_model_name = convnext_model_name
         self.swin_model_name = swin_model_name

@@ -22,8 +22,8 @@ import sys
 
 # Configuration  -- change to allow processing several folders, saving outputs into separate folders, running on HPC
 IMG_SIZE = 224  
-YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/nano/epoch_100/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
-CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
+YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/small/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
+CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35_new/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
 SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -31,7 +31,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 input_name = os.path.basename(os.path.normpath(SLIDES_DIR))
 
 # Define output path
-base_output_dir = "/home/yash/POL-ID/outputs/clustering_outputs"
+base_output_dir = "/home/yash/POL-ID/outputs/"
 output_dir = os.path.join(base_output_dir, input_name)
 os.makedirs(output_dir, exist_ok=True)
 
@@ -96,7 +96,7 @@ class ParallelFusionModel(nn.Module):
         else:
             return output
 
-CONFIDENCE_THRESHOLD = 0.2  # Below this, trigger clustering
+CONFIDENCE_THRESHOLD = 0.3  # Below this, trigger clustering
 CROP_PADDING = 10  # Pixels to pad around detected pollen grains
 
 # Preprocessing 
@@ -204,30 +204,46 @@ if low_conf_embeddings:
     # Visualize the Clusters with UMAP 
     print("Generating UMAP plot for visualization...")
     
-    # Reduce dimensionality to 2D
-    reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, n_components=2, random_state=42)
-    embeddings_2d = reducer.fit_transform(embeddings_array)
+    # UMAP requires at least 2 data points to run.
+    if len(low_conf_embeddings) < 3:
+        print("Not enough low-confidence embeddings for UMAP (< 3). Skipping cluster visualization.")
+    else:
+        embeddings_array = np.stack(low_conf_embeddings).astype(np.float64)
 
-    # Create a scatter plot
-    plt.figure(figsize=(12, 10))
-    # Create a palette with a color for each cluster, plus gray for noise
-    unique_labels = set(labels)
-    palette = sns.color_palette("deep", len(unique_labels))
-    # Map labels to colors, making noise (-1) gray
-    colors = {label: palette[i] if label != -1 else (0.5, 0.5, 0.5) for i, label in enumerate(unique_labels)}
-    
-    # Plot each point with its cluster color
-    for i, label in enumerate(labels):
-        plt.scatter(embeddings_2d[i, 0], embeddings_2d[i, 1], c=[colors[label]], s=10)
+        # Dynamically set n_neighbors. It must be less than the number of samples.
+        # We set a desired default, but reduce it if the dataset is too small.
+        default_n_neighbors = 15
+        n_neighbors = min(default_n_neighbors, len(embeddings_array) - 1)
 
-    plt.title('UMAP Projection of Pollen Embeddings, Colored by HDBSCAN Cluster')
-    plt.xlabel('UMAP Dimension 1')
-    plt.ylabel('UMAP Dimension 2')
-    plt.grid(True)
-    plot_path = os.path.join(output_dir, "umap_cluster_visualization.png")
-    plt.savefig(plot_path)
-    plt.close()
-    print(f"Cluster visualization saved to {plot_path}")
+        print(f"Running UMAP with n_neighbors = {n_neighbors}")
+        reducer = umap.UMAP(
+            n_neighbors=n_neighbors, 
+            min_dist=0.1, 
+            n_components=2, 
+            random_state=42
+        )
+        embeddings_2d = reducer.fit_transform(embeddings_array)
+
+        # Create a scatter plot
+        plt.figure(figsize=(12, 10))
+        unique_labels = sorted(list(set(labels))) # Sort for consistent color mapping
+        # Create a palette with a color for each cluster, plus gray for noise
+        palette = sns.color_palette("deep", len(unique_labels))
+        colors = {label: palette[i] if label != -1 else (0.5, 0.5, 0.5) for i, label in enumerate(unique_labels)}
+        
+        # Plot each point with its cluster color
+        for i, label in enumerate(labels):
+            plt.scatter(embeddings_2d[i, 0], embeddings_2d[i, 1], c=[colors[label]], s=15, alpha=0.7)
+
+        plt.title('UMAP Projection of Low-Confidence Embeddings (Colored by HDBSCAN Cluster)')
+        plt.xlabel('UMAP Dimension 1')
+        plt.ylabel('UMAP Dimension 2')
+        plt.grid(True)
+        plot_path = os.path.join(output_dir, "umap_cluster_visualization.png")
+        plt.savefig(plot_path)
+        plt.close()
+        print(f"Cluster visualization saved to {plot_path}")
+
 
     # Save Image Exemplars for Each Cluster 
     print("Saving image exemplars for each cluster...")
@@ -270,6 +286,25 @@ for cluster_name, count in cluster_summary.items():
 print(f"Total pollen grains analyzed: {total}")
 print(f"Dominant taxa (>45% representation): {dominant_classes}")
 print(f"Honey type: {honey_type}")
+
+import csv
+
+# Generate CSV Composition Report
+csv_path = os.path.join(output_dir, f"{input_name}_composition.csv")
+with open(csv_path, mode='w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(["Honey", "Taxon", "% Composition"])
+
+    for class_name, count in predictions_summary.items():
+        percent_representation = 100 * count / total
+        writer.writerow([input_name, class_name, f"{percent_representation:.1f}"])
+    
+    for cluster_name, count in cluster_summary.items():
+        percent_representation = 100 * count / total
+        writer.writerow([input_name, cluster_name, f"{percent_representation:.1f}"])
+
+print(f"Composition CSV saved to: {csv_path}")
+
 # Optional: Close the redirected stdout to flush file
 sys.stdout.close()
 sys.stdout = sys.__stdout__

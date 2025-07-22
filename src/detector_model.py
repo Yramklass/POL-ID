@@ -1,114 +1,112 @@
+# Model Configuration
+_base_ = 'yolox/yolox_s_8xb8-300e_coco.py'
 
-import torch
-from ultralytics import YOLO
-from pathlib import Path
-import os
+# 1. Dataset Settings
+data_root = '/scratch/rmkyas002/mmdetection_data/'
+class_name = ('pollen',)
+num_classes = len(class_name)
+metainfo = dict(classes=class_name)
+img_scale = (640, 640)
 
-# Configuration
+# 2. Model Head Configuration
+model = dict(
+    bbox_head=dict(num_classes=num_classes),
+    train_cfg=dict(assigner=dict(center_radius=2.5)),
+    test_cfg=dict(score_thr=0.01, nms=dict(type='nms', iou_threshold=0.65)))
 
-# Path Definitions 
+# 3. Pipeline Definitions
+train_pipeline = [
+    dict(type='Mosaic', img_scale=img_scale, pad_val=114.0),
+    dict(
+        type='RandomAffine',
+        scaling_ratio_range=(0.1, 2),
+        border=(-img_scale[0] // 2, -img_scale[1] // 2)),
+    dict(
+        type='MixUp',
+        img_scale=img_scale,
+        ratio_range=(0.8, 1.6),
+        pad_val=114.0),
+    dict(type='YOLOXHSVRandomAug'),
+    dict(type='RandomFlip', prob=0.5),
+    dict(type='Resize', scale=img_scale, keep_ratio=True),
+    dict(type='Pad', pad_to_square=True, pad_val=dict(img=(114.0, 114.0, 114.0))),
+    dict(type='FilterAnnotations', min_gt_bbox_wh=(1, 1), keep_empty=False),
+    dict(type='PackDetInputs')
+]
 
-# FOR LOCAL RUN
-# try:
-#     ROOT_DIR = Path(__file__).resolve().parent.parent
-# except NameError:
-#     # This fallback is for interactive environments like Jupyter notebooks
-#     ROOT_DIR = Path(os.getcwd())
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='Resize', scale=img_scale, keep_ratio=True),
+    dict(type='Pad', pad_to_square=True, pad_val=dict(img=(114.0, 114.0, 114.0))),
+    dict(type='LoadAnnotations', with_bbox=True),
+    dict(
+        type='PackDetInputs',
+        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
+                   'scale_factor'))
+]
 
-# Path to the dataset configuration YAML file
-# DATASET_YAML_PATH = ROOT_DIR / "data/detection/pollen_detector/datasets/pollen/pollen.yaml"
-# OUTPUT_PATH = ROOT_DIR / "models" / "detection_outputs"
+# 4. Dataloader Definitions
+train_dataloader = dict(
+    batch_size=16,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=True),
+    dataset=dict(
+        type='CocoDataset',
+        data_root=data_root,
+        metainfo=metainfo,
+        ann_file='train/_annotations.coco.json',
+        data_prefix=dict(img='train/'),
+        pipeline=train_pipeline))
 
-# FOR HPC RUN
-DATASET_YAML_PATH = Path("/scratch/rmkyas002/pollen_detector/datasets/pollen/pollen.yaml")
+val_dataloader = dict(
+    batch_size=8,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
+        type='CocoDataset',
+        data_root=data_root,
+        metainfo=metainfo,
+        ann_file='valid/_annotations.coco.json',
+        data_prefix=dict(img='valid/'),
+        test_mode=True,
+        pipeline=test_pipeline))
 
-OUTPUT_PARENT_DIR = Path("/scratch/rmkyas002/detection_outputs") 
-RUN_NAME = "pollen_yolov8n_run1"
-OUTPUT_PATH = OUTPUT_PARENT_DIR / RUN_NAME
+test_dataloader = val_dataloader
 
-# Model & Training Hyperparameters
-MODEL_CHOICE = 'yolo11n.pt'  # 'n' for nano, 's'/'m'/'l'/'x' for small/medium/large/extra-large
-EPOCHS = 300                 # Number of training epochs
-PATIENCE = 30
-IMAGE_SIZE = 640             # Target image size for training
-BATCH_SIZE = 16              # Number of images per batch (-1 for auto-batch)
+# 5. Evaluator Definitions
+val_evaluator = dict(
+    type='CocoMetric',
+    ann_file=data_root + 'valid/_annotations.coco.json',
+    metric='bbox')
+test_evaluator = val_evaluator
 
+# 6. Training Schedule and Runtime
+max_epochs = 100
+train_cfg = dict(
+    max_epochs=max_epochs,
+    val_interval=5,
+    dynamic_intervals=[(max_epochs - 10, 1)]) # Close mosaic aug near the end
 
-def main():
-    """
-    Main function to run the YOLO training and evaluation pipeline.
-    """
-    print("--- YOLO Pollen Detector Training ---")
-    
-    # Setup and Pre-checks
-    
-    # Check if the dataset YAML file exists
-    if not DATASET_YAML_PATH.exists():
-        print(f"ERROR: Dataset YAML file not found at: {DATASET_YAML_PATH}")
-        print("Please ensure you have run the data preparation script and the file exists.")
-        return
+# Use auto_scale_lr in the sbatch script instead of hardcoding LR
+optim_wrapper = dict(
+    type='OptimWrapper',
+    optimizer=dict(
+        type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4), # Base LR
+    paramwise_cfg=dict(norm_decay_mult=0., bias_decay_mult=0.),
+    clip_grad=dict(max_norm=35, norm_type=2))
 
-    # Check for GPU availability
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {device}")
-    
-    # Create the output directory if it doesn't exist
-    OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
-    print(f"All outputs will be saved to: {OUTPUT_PATH / RUN_NAME}")
-    
-    
-    # MODEL TRAINING 
-    
-    # Initialize a YOLO model from a pretrained checkpoint
-    print(f" initializing model with '{MODEL_CHOICE}'...")
-    model = YOLO(MODEL_CHOICE)
-    model.to(device)
+param_scheduler = [
+    dict(type='LinearLR', start_factor=0.001, by_epoch=False, begin=0, end=500),
+    dict(
+        type='MultiStepLR',
+        begin=0,
+        end=max_epochs,
+        by_epoch=True,
+        milestones=[80, 90],
+        gamma=0.1)
+]
 
-    print("\nStarting model training...")
-    # The 'train' method returns a results object with training metrics and paths
-    results = model.train(
-        data=str(DATASET_YAML_PATH),
-        epochs=EPOCHS,
-        patience=PATIENCE, 
-        imgsz=IMAGE_SIZE,
-        batch=BATCH_SIZE,
-        project=str(OUTPUT_PATH),  # Sets the parent directory for output
-        name=RUN_NAME,             # Sets the specific folder name for this run
-        exist_ok=True              # Allows overwriting of a previous run with the same name
-    )
-    print("Training complete.")
-
-    
-    # Evaluation on Test Set
-    
-    print("\nPerforming final evaluation on the test set...")
-    
-    # Path to the best performing model's weights, saved during training
-    best_model_path = results.save_dir / 'weights' / 'best.pt'
-    
-    if not best_model_path.exists():
-        print(f"ERROR: Best model weights not found at '{best_model_path}'.")
-        print("Skipping final evaluation.")
-        return
-        
-    # Load the best model for evaluation
-    best_model = YOLO(best_model_path)
-    
-    # Run validation on the 'test' split defined in the YAML file
-    metrics = best_model.val(
-        split='test',
-        data=str(DATASET_YAML_PATH)
-    )
-    
-    print("\n--- Test Set Performance ---")
-    print(f"  mAP50-95 (Box): {metrics.box.map:.4f}")
-    print(f"  mAP50 (Box):    {metrics.box.map50:.4f}")
-    print(f"  Precision (Box): {metrics.box.p[0]:.4f}") # Precision for the 'pollen' class
-    print(f"  Recall (Box):    {metrics.box.r[0]:.4f}")    # Recall for the 'pollen' class
-    print("----------------------------\n")
-    print(f"Evaluation metrics and plots saved in: {metrics.save_dir}")
-    print("Full process complete!")
-
-
-if __name__ == '__main__':
-    main()
+default_hooks = dict(
+    checkpoint=dict(interval=5, save_best='auto', max_keep_ckpts=3))
