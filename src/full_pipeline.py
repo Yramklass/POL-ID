@@ -20,7 +20,7 @@ import sys
 
 
 
-# Configuration  -- change to allow processing several folders, saving outputs into separate folders, running on HPC
+# Configuration  
 IMG_SIZE = 224  
 YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/small/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
 CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35_new/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
@@ -66,7 +66,7 @@ class ParallelFusionModel(nn.Module):
             nn.Linear(combined_features_dim, 1024),
             nn.BatchNorm1d(1024),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5), # <--- ADD STRONG DROPOUT HERE
+            nn.Dropout(p=0.5), 
             nn.Linear(1024, num_classes)
             )
 
@@ -305,7 +305,7 @@ with open(csv_path, mode='w', newline='') as csvfile:
 
 print(f"Composition CSV saved to: {csv_path}")
 
-# Optional: Close the redirected stdout to flush file
+# Close the redirected stdout 
 sys.stdout.close()
 sys.stdout = sys.__stdout__
 print("Pipeline complete.")

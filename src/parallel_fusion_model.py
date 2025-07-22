@@ -171,7 +171,7 @@ class ParallelFusionModel(nn.Module):
             nn.Linear(combined_features_dim, 1024),
             nn.BatchNorm1d(1024),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.5), # <--- ADD STRONG DROPOUT HERE
+            nn.Dropout(p=0.5), 
             nn.Linear(1024, num_classes)
             )
 
@@ -190,7 +190,7 @@ class ParallelFusionModel(nn.Module):
         features_convnext = self.convnext_model(x)
         features_swin = self.swin_model(x)
         
-        # This is your feature embedding
+        # Fused Feature Embedding
         fused_features = torch.cat((features_convnext, features_swin), dim=1)
         
         # Final classification

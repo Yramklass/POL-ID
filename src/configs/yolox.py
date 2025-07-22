@@ -9,9 +9,9 @@ metainfo = dict(classes=class_name)
 # Image Size
 img_scale = (640, 640)
 
-# 3. Pipeline Definitions (Updated)
+# 3. Pipeline Definitions 
 train_pipeline = [
-    # The 'LoadImageFromFile' transform is now required before Mosaic/MixUp
+    # The 'LoadImageFromFile' transform is required before Mosaic/MixUp
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(type='Mosaic', img_scale=img_scale, pad_val=114.0),
