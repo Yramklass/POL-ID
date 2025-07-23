@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import math
 import sys
+from sklearn.metrics import silhouette_score, davies_bouldin_score
 
 
 
@@ -23,7 +24,7 @@ import sys
 # Configuration  
 IMG_SIZE = 224  
 YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/small/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
-CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35_new/parallel_fusion/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
+CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35_small/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
 SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -178,9 +179,9 @@ if low_conf_embeddings:
     print(f"\nFound {len(low_conf_embeddings)} low-confidence grains to cluster.")
     
     # Prepare Data
-    embeddings_array = np.stack(low_conf_embeddings).astype(np.float64)  
+    embeddings_array = np.stack(low_conf_embeddings).astype(np.float64)
 
-    # Run HDBSCAN 
+    # Run HDBSCAN
     print("Running HDBSCAN...")
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=5,
@@ -191,12 +192,32 @@ if low_conf_embeddings:
     )
     labels = clusterer.fit_predict(embeddings_array)
 
-    
-    # Summarize Results 
+    # Summarize Results
     num_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     num_noise = np.sum(labels == -1)
     print(f"HDBSCAN found {num_clusters} clusters and {num_noise} noise points.")
 
+    # NEW: Calculate and print clustering evaluation metrics
+    # We must filter out noise points (label == -1) as these metrics can't handle them.
+    if num_clusters >= 2:
+        # Create a boolean mask to select only points that are part of a cluster
+        core_samples_mask = labels != -1
+        
+        # Get the labels and embeddings for the core samples
+        core_labels = labels[core_samples_mask]
+        core_embeddings = embeddings_array[core_samples_mask]
+
+        # Calculate the scores
+        silhouette_avg = silhouette_score(core_embeddings, core_labels)
+        db_index = davies_bouldin_score(core_embeddings, core_labels)
+
+        print("\n--- Clustering Evaluation Metrics ---")
+        print(f"Silhouette Score: {silhouette_avg:.3f}")
+        print(f"Davies-Bouldin Index: {db_index:.3f}")
+        print("-----------------------------------")
+    else:
+        print("\nCould not calculate clustering metrics: less than 2 clusters found.")
+        
     for label in labels:
         cluster_name = f"cluster_{label}" if label != -1 else "unknown_noise"
         cluster_summary[cluster_name] += 1
@@ -204,15 +225,16 @@ if low_conf_embeddings:
     # Visualize the Clusters with UMAP 
     print("Generating UMAP plot for visualization...")
     
-    # UMAP requires at least 2 data points to run.
-    if len(low_conf_embeddings) < 3:
-        print("Not enough low-confidence embeddings for UMAP (< 3). Skipping cluster visualization.")
+    # MODIFIED: Increased the minimum number of points required for UMAP to avoid numerical errors.
+    # A plot with fewer than ~5 points is not very informative and can cause the algorithm to fail.
+    if len(low_conf_embeddings) <= 5:
+        print(f"Not enough low-confidence embeddings for UMAP ({len(low_conf_embeddings)} found, need > 5). Skipping cluster visualization.")
     else:
         embeddings_array = np.stack(low_conf_embeddings).astype(np.float64)
 
         # Dynamically set n_neighbors. It must be less than the number of samples.
-        # We set a desired default, but reduce it if the dataset is too small.
         default_n_neighbors = 15
+        # This logic is correct, but the check above prevents it from running on too-small N
         n_neighbors = min(default_n_neighbors, len(embeddings_array) - 1)
 
         print(f"Running UMAP with n_neighbors = {n_neighbors}")
@@ -226,12 +248,10 @@ if low_conf_embeddings:
 
         # Create a scatter plot
         plt.figure(figsize=(12, 10))
-        unique_labels = sorted(list(set(labels))) # Sort for consistent color mapping
-        # Create a palette with a color for each cluster, plus gray for noise
+        unique_labels = sorted(list(set(labels)))
         palette = sns.color_palette("deep", len(unique_labels))
         colors = {label: palette[i] if label != -1 else (0.5, 0.5, 0.5) for i, label in enumerate(unique_labels)}
         
-        # Plot each point with its cluster color
         for i, label in enumerate(labels):
             plt.scatter(embeddings_2d[i, 0], embeddings_2d[i, 1], c=[colors[label]], s=15, alpha=0.7)
 
