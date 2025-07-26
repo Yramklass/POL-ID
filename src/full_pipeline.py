@@ -197,7 +197,7 @@ if low_conf_embeddings:
     num_noise = np.sum(labels == -1)
     print(f"HDBSCAN found {num_clusters} clusters and {num_noise} noise points.")
 
-    # NEW: Calculate and print clustering evaluation metrics
+    # Calculate and print clustering evaluation metrics
     # We must filter out noise points (label == -1) as these metrics can't handle them.
     if num_clusters >= 2:
         # Create a boolean mask to select only points that are part of a cluster
@@ -225,7 +225,7 @@ if low_conf_embeddings:
     # Visualize the Clusters with UMAP 
     print("Generating UMAP plot for visualization...")
     
-    # MODIFIED: Increased the minimum number of points required for UMAP to avoid numerical errors.
+   
     # A plot with fewer than ~5 points is not very informative and can cause the algorithm to fail.
     if len(low_conf_embeddings) <= 5:
         print(f"Not enough low-confidence embeddings for UMAP ({len(low_conf_embeddings)} found, need > 5). Skipping cluster visualization.")
@@ -234,7 +234,7 @@ if low_conf_embeddings:
 
         # Dynamically set n_neighbors. It must be less than the number of samples.
         default_n_neighbors = 15
-        # This logic is correct, but the check above prevents it from running on too-small N
+       
         n_neighbors = min(default_n_neighbors, len(embeddings_array) - 1)
 
         print(f"Running UMAP with n_neighbors = {n_neighbors}")
