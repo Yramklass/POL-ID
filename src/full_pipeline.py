@@ -23,8 +23,8 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 
 # Configuration  
 IMG_SIZE = 224  
-YOLO_MODEL_PATH = "/home/yash/POL-ID/models/YOLO/yolo_11/small/detection_outputs/pollen_yolov8n_run1/pollen_yolov8n_run1/weights/best.pt"
-CLASSIFIER_MODEL_PATH = "/home/yash/POL-ID/models/par_outputs/35_small/training_outputs_parallel_fusion/pollen_parallel_fusion_final_full.pth"
+YOLO_MODEL_PATH = "/scratch/rmkyas002/best.pt"
+CLASSIFIER_MODEL_PATH = "/scratch/rmkyas002/pollen_parallel_fusion_final_full.pth"
 SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,7 +32,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 input_name = os.path.basename(os.path.normpath(SLIDES_DIR))
 
 # Define output path
-base_output_dir = "/home/yash/POL-ID/outputs/"
+base_output_dir = "/scratch/rmkyas002/full_pipeline_outputs/"
 output_dir = os.path.join(base_output_dir, input_name)
 os.makedirs(output_dir, exist_ok=True)
 
@@ -97,7 +97,7 @@ class ParallelFusionModel(nn.Module):
         else:
             return output
 
-CONFIDENCE_THRESHOLD = 0.3  # Below this, trigger clustering
+CONFIDENCE_THRESHOLD = 0.5  # Below this, trigger clustering
 CROP_PADDING = 10  # Pixels to pad around detected pollen grains
 
 # Preprocessing 
@@ -115,7 +115,8 @@ print("\nLoading YOLO detector...")
 detector = YOLO(YOLO_MODEL_PATH)
 
 print("Loading ParallelFusion classifier...")
-model = torch.load(CLASSIFIER_MODEL_PATH, map_location=DEVICE)
+model = torch.load(CLASSIFIER_MODEL_PATH, map_location=DEVICE, weights_only=False)
+
 model.eval()
 model.to(DEVICE)
 class_names = model.class_names

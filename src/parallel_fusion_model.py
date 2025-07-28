@@ -392,7 +392,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
 if __name__ == '__main__':
     # Configuration
     base_data_dir = "/scratch/rmkyas002/processed_crops" 
-    CLASS_LIST_FILE = 'classes_to_include.txt' 
+    CLASS_LIST_FILE = None #'classes_to_include.txt' 
 
     script_location_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(script_location_dir, "training_outputs_parallel_fusion") 

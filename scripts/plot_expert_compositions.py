@@ -5,7 +5,7 @@ import os
 
 # --- Config ---
 INPUT_CSV = "/home/yash/POL-ID/outputs/expert_compositions.csv"  # Path to the CSV file
-OUTPUT_DIR = "/home/yash/POL-ID/data/sample_input/expert_composition_plots"  # Folder to save the graphs
+OUTPUT_DIR = "/home/yash/POL-ID/outputs/plots/expert_composition_plots"  # Folder to save the graphs
 # --- End Config ---
 
 # Create output directory if it doesn't exist

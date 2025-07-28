@@ -13,9 +13,12 @@ def normalize_taxon(taxon):
     return taxon.strip('_')  # remove leading/trailing underscores
 
 # Paths 
-base_dir = '/home/yash/POL-ID/outputs'
+base_dir = '/home/yash/POL-ID/outputs/'
+sample_dir = os.path.join(base_dir,'full_pipeline_outputs')
+sample_dir = os.path.join(sample_dir,'30')
 expert_path = os.path.join(base_dir, 'expert_compositions.csv')
 plots_dir = os.path.join(base_dir, 'plots')
+plots_dir = os.path.join(plots_dir, '30')
 os.makedirs(plots_dir, exist_ok=True)
 
 # Load expert compositions 
@@ -24,7 +27,7 @@ expert_df = pd.read_csv(expert_path)
 # Process each sample
 for sample in expert_df['Sample'].unique():
     expert_sample = expert_df[expert_df['Sample'] == sample][['Taxon', 'Percentage']].copy()
-    sample_folder = os.path.join(base_dir, sample)
+    sample_folder = os.path.join(sample_dir, sample)
     model_file = os.path.join(sample_folder, f'{sample}_composition.csv')
     
     if not os.path.exists(model_file):

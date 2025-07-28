@@ -2,10 +2,10 @@ import os
 import subprocess
 
 # Path to inputs directory
-sample_inputs_root = "/home/yash/POL-ID/data/sample_input"
+sample_inputs_root = "/scratch/rmkyas002/sample_input"
 
 # Path to the full_pipeline script
-full_pipeline_script = "/home/yash/POL-ID/src/full_pipeline.py"
+full_pipeline_script = "full_pipeline.py"
 
 # Get all subdirectories in sample_inputs
 for entry in os.listdir(sample_inputs_root):
