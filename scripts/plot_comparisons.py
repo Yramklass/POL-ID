@@ -15,10 +15,10 @@ def normalize_taxon(taxon):
 # Paths 
 base_dir = '/home/yash/POL-ID/outputs/'
 sample_dir = os.path.join(base_dir,'full_pipeline_outputs')
-sample_dir = os.path.join(sample_dir,'30')
+sample_dir = os.path.join(sample_dir,'76_ray_classifier')
 expert_path = os.path.join(base_dir, 'expert_compositions.csv')
 plots_dir = os.path.join(base_dir, 'plots')
-plots_dir = os.path.join(plots_dir, '30')
+plots_dir = os.path.join(plots_dir, '76_ray_classifier')
 os.makedirs(plots_dir, exist_ok=True)
 
 # Load expert compositions 
