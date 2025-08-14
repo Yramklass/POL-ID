@@ -32,6 +32,23 @@ module load python/miniconda3-py3.9
 echo "Modules loaded."
 echo "------------------------------------------------------------------------"
 
+# Remove old Conda environment 
+conda env remove --n pollen_detection_env --yes
+if [ $? -ne 0 ]; then
+    echo "Warning: Failed to remove old Conda environment."
+fi
+
+# Create Conda environment from file
+ENV_YAML_PATH="~/pol_id/detection/detection_environment.yaml" 
+echo "Creating Conda environment: pollen_detection_env from $ENV_YAML_PATH"
+conda env create -f $ENV_YAML_PATH
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to create Conda environment."
+    exit 1
+fi
+echo "Conda environment created."
+echo "------------------------------------------------------------------------"
+
 # Activate custom Conda environment
 echo "Activating Conda environment: pollen_detection_env"
 source activate pollen_detection_env

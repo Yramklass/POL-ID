@@ -123,15 +123,17 @@ model = dict(
     test_cfg=dict(score_thr=0.01, nms=dict(type='nms', iou_threshold=0.65)))
 
 # Training Schedule
-max_epochs = 100
+max_epochs = 300  
+num_last_epochs = 15
 train_cfg = dict(
     max_epochs=max_epochs,
-    val_interval=5,
-    dynamic_intervals=[(max_epochs - 10, 1)])
+    val_interval=10,  # Validate less frequently during the main training
+    # Switch pipelines in the last 15 epochs
+    dynamic_intervals=[(max_epochs - num_last_epochs, 1)])
 
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4),
+    optimizer=dict(type='SGD', lr=0.0025, momentum=0.9, weight_decay=5e-4, nesterov=True),
     paramwise_cfg=dict(norm_decay_mult=0., bias_decay_mult=0.),
     clip_grad=dict(max_norm=35, norm_type=2))
 
@@ -141,14 +143,29 @@ param_scheduler = [
         start_factor=0.001,
         by_epoch=False,
         begin=0,
-        end=500),
+        end=130), 
     dict(
-        type='MultiStepLR',
-        begin=0,
-        end=max_epochs,
+        type='CosineAnnealingLR',
+        T_max=295, # max_epochs - num_warmup_epochs
+        eta_min=0.000025,
         by_epoch=True,
-        milestones=[80, 90],
-        gamma=0.1)
+        begin=5,
+        end=300, # Should match max_epochs
+    )
+]
+# CUSTOM HOOK TO DISABLE AUGMENTATIONS in last 15 epochs
+custom_hooks = [
+    dict(
+        type='YOLOXModeSwitchHook',
+        num_last_epochs=num_last_epochs,
+        priority=48),
+    dict(type='SyncNormHook', priority=48),
+    dict(
+        type='EMAHook',
+        ema_type='ExpMomentumEMA',
+        momentum=0.0001,
+        update_buffers=True,
+        priority=49)
 ]
 
 # Runtime
@@ -156,7 +173,7 @@ default_scope = 'mmdet'
 default_hooks = dict(
     checkpoint=dict(
         type='CheckpointHook',
-        interval=5,
+        interval=10,
         save_best='auto',
         max_keep_ckpts=3),
     logger=dict(type='LoggerHook', interval=50))

@@ -4,13 +4,15 @@ import random
 from PIL import Image
 from sklearn.model_selection import train_test_split # For stratified splitting
 import shutil # For cleaning up output directory
-import numpy as np 
+import numpy as np
+import csv
+import matplotlib.pyplot as plt
 
-# CONFIGURATION 
+# CONFIGURATION
 script_directory = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.normpath(os.path.join(script_directory, "..", "data", "classification"))
 OUTPUT_DIR = os.path.join(BASE_DIR, "processed_crops")
-SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15} 
+SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
 SEED = 42 # For reproducible splits
 
 # Initialize random seed
@@ -25,16 +27,16 @@ def group_stacks(image_files):
     current_stack = []
     # Sort files to ensure consistent stack grouping if not already sorted
     # This is important if "box" isn't always the absolute last or if order matters
-    sorted_image_files = sorted(image_files) 
+    sorted_image_files = sorted(image_files)
 
     for fname in sorted_image_files:
-        
+
         if "box" in fname.lower(): # Assuming "box" marks the end of a distinct slide/stack
             stacks.append(list(current_stack)) # Add a copy of the current stack
             current_stack = [] # Reset for the next stack
         else:
             current_stack.append(fname)
-    
+
     # Add any remaining files as the last stack if it's not empty
     # This handles cases where the last sequence might not end with a "box" file,
     # or if there's only one stack without a "box" file.
@@ -75,9 +77,9 @@ def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name
             if w <= 0 or h <= 0:
                 print(f"Warning: Invalid bbox dimensions (w={w}, h={h}) for annotation ID {ann.get('id', 'N/A')} in {image_name}. Skipping crop.")
                 continue
-            
+
             cropped = image.crop((x, y, x + w, y + h))
-            
+
             label_id = ann["category_id"]
             # Use the provided id_to_category_map from the specific annotation file
             raw_label_name = id_to_category_map.get(label_id, f"unknown_category_{label_id}")
@@ -85,12 +87,40 @@ def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name
 
             label_dir = os.path.join(output_base_dir, label_name_slug)
             os.makedirs(label_dir, exist_ok=True)
-            
+
             # Create a unique name for the crop
             crop_name = f"{os.path.splitext(image_name)[0]}_crop{ann.get('id', ann_idx)}.jpg"
             cropped.save(os.path.join(label_dir, crop_name))
         except Exception as e:
             print(f"Error processing annotation {ann.get('id', 'N/A')} for image {image_name}: {e}")
+
+def write_stack_counts_to_csv(stack_counts, output_dir):
+    """Writes the taxon stack counts to a CSV file."""
+    output_path = os.path.join(output_dir, "taxon_stack_counts.csv")
+    print(f"\nWriting stack counts to {output_path}...")
+    with open(output_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['Taxon', 'NumberOfStacks'])
+        for taxon, count in sorted(stack_counts.items()):
+            writer.writerow([taxon, count])
+
+def plot_stack_counts(stack_counts, output_dir):
+    """Creates and saves a bar chart of taxon stack counts."""
+    output_path = os.path.join(output_dir, "taxon_stack_counts.png")
+    print(f"Generating stack count plot at {output_path}...")
+
+    sorted_taxa = sorted(stack_counts.keys(), key=lambda k: stack_counts[k], reverse=True)
+    sorted_counts = [stack_counts[k] for k in sorted_taxa]
+
+    plt.figure(figsize=(10, max(8, len(sorted_taxa) * 0.4))) # Adjust height based on number of taxa
+    plt.barh(sorted_taxa, sorted_counts)
+    plt.xlabel("Number of Stacks")
+    plt.ylabel("Taxon")
+    plt.title("Number of Stacks per Taxon")
+    plt.gca().invert_yaxis() # Display the taxon with the most stacks at the top
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
 
 
 def main():
@@ -142,6 +172,12 @@ def main():
     taxon_to_stacks = {k: v for k, v in taxon_to_stacks.items() if len(v) >= 3}
     print(f"\nTotal valid taxa with >= 3 stacks: {len(taxon_to_stacks)}")
 
+    # Generate and save stack counts
+    taxon_stack_counts = {taxon: len(stacks) for taxon, stacks in taxon_to_stacks.items()}
+    if taxon_stack_counts:
+        write_stack_counts_to_csv(taxon_stack_counts, OUTPUT_DIR)
+        plot_stack_counts(taxon_stack_counts, OUTPUT_DIR)
+
     # Split each taxon into train/val/test
     train_stacks, val_stacks, test_stacks = [], [], []
     from math import floor
@@ -174,7 +210,7 @@ def main():
         test_stacks += stacks[n_train + n_val:n_train + n_val + n_test]
 
         # Debug print per-taxon split
-        print(f"Taxon '{taxon}': total {n} → train: {n_train}, val: {n_val}, test: {n_test}")
+        print(f"Taxon '{taxon}': total {n} -> train: {n_train}, val: {n_val}, test: {n_test}")
 
     splits_map = {
         "train": train_stacks,
@@ -194,16 +230,16 @@ def main():
     print("\nProcessing and saving crops for each split...")
     for split_name, stacks_in_split in splits_map.items():
         print(f"  Processing {split_name} set ({len(stacks_in_split)} stacks)...")
-        if not stacks_in_split: 
+        if not stacks_in_split:
             print(f"    Split '{split_name}' is empty, skipping.")
             continue
-            
+
         output_subdir_for_split = os.path.join(OUTPUT_DIR, split_name)
 
         for stack_info in stacks_in_split:
             stack_files = stack_info['files']
             annotation_file = stack_info['annotation_file']
-            taxon_base_path = stack_info['taxon_base_path'] 
+            taxon_base_path = stack_info['taxon_base_path']
 
             try:
                 with open(annotation_file, 'r') as f:
@@ -211,7 +247,7 @@ def main():
             except Exception as e:
                 print(f"    Error loading annotation file {annotation_file}: {e}. Skipping stack.")
                 continue
-            
+
             id_to_category_map = {cat["id"]: cat["name"] for cat in coco_data.get("categories", [])}
             image_id_map = {os.path.basename(img["file_name"]): img["id"] for img in coco_data.get("images", [])}
             annotations_by_img_id = {}
@@ -226,11 +262,12 @@ def main():
 
                 annotations_for_current_image = annotations_by_img_id.get(image_id, [])
                 if not annotations_for_current_image:
-                    continue 
+                    print(f"      --> INFO: Skipping {image_filename_in_stack} because it has no annotations in the JSON.")
+                    continue
 
                 image_full_path = os.path.join(taxon_base_path, image_filename_in_stack)
-                crop_and_save(image_full_path, annotations_for_current_image, 
-                              output_subdir_for_split, image_filename_in_stack, id_to_category_map)
+                crop_and_save(image_full_path, annotations_for_current_image,
+                                output_subdir_for_split, image_filename_in_stack, id_to_category_map)
 
     print("\nCropping and splitting process complete.")
     print_dataset_summary(OUTPUT_DIR)
@@ -245,7 +282,7 @@ def print_dataset_summary(output_dir):
         if not os.path.isdir(split_path):
             print("  Directory not found.")
             continue
-        
+
         total_images_in_split = 0
         taxon_counts = {}
         for taxon_name_slug in sorted(os.listdir(split_path)):
@@ -254,7 +291,7 @@ def print_dataset_summary(output_dir):
                 num_images = len([f for f in os.listdir(taxon_path) if f.lower().endswith('.jpg')])
                 taxon_counts[taxon_name_slug] = num_images
                 total_images_in_split += num_images
-        
+
         for taxon_name_slug, num_images in sorted(taxon_counts.items()):
              print(f"  Taxon: {taxon_name_slug}, Images: {num_images}")
         print(f"  Total images in {split}: {total_images_in_split}")
@@ -267,8 +304,13 @@ if __name__ == "__main__":
     except ImportError:
         print("Error: scikit-learn is required for stratified splitting. Please install it (pip install scikit-learn).")
         exit()
-    
-    if not np.isclose(sum(SPLIT_RATIOS.values()), 1.0): 
+    try:
+        import matplotlib
+    except ImportError:
+        print("Error: matplotlib is required for plotting. Please install it (pip install matplotlib).")
+        exit()
+
+    if not np.isclose(sum(SPLIT_RATIOS.values()), 1.0):
         print(f"Error: SPLIT_RATIOS must sum to 1.0. Current sum: {sum(SPLIT_RATIOS.values())}")
         exit()
 

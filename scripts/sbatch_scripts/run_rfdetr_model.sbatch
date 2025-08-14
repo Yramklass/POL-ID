@@ -1,19 +1,19 @@
 #!/bin/sh
 
-#SBATCH --account=compsci 
-#SBATCH --job-name="POL_ID_Parallel_Fusion" 
+#SBATCH --account=compsci
+#SBATCH --job-name="RFDETR_Pollen_Train" 
 #SBATCH --mail-user=rmkyas002@myuct.ac.za
-#SBATCH --mail-type=BEGIN,END,FAIL 
-                                     
+#SBATCH --mail-type=BEGIN,END,FAIL
+
 # Resource Allocation
-#SBATCH --account=l40sfree 
-#SBATCH --partition=l40s 
-#SBATCH --nodes=1 --ntasks=1 --gres=gpu:l40s:1 # Requesting 1 node, 1 task, 1 L40S GPU
-#SBATCH --time=48:00:00 # 
+#SBATCH --account=l40sfree
+#SBATCH --partition=l40s
+#SBATCH --nodes=1 --ntasks=1 --gres=gpu:l40s:1
+#SBATCH --time=48:00:00
 
 # Output and error files
-#SBATCH --output=parallel_fusion_output_%j.out
-#SBATCH --error=parallel_fusion_error_%j.err
+#SBATCH --output=rfdetr_train_output_%j.out # <-- Updated Output File
+#SBATCH --error=rfdetr_train_error_%j.err   # <-- Updated Error File
 
 # Environment Setup
 echo "------------------------------------------------------------------------"
@@ -22,26 +22,36 @@ echo "Current working directory is $(pwd)"
 echo "SLURM Job ID: $SLURM_JOB_ID"
 echo "SLURM Job Name: $SLURM_JOB_NAME"
 echo "SLURM Node List: $SLURM_JOB_NODELIST"
-echo "SLURM Tasks per Node: $SLURM_NTASKS_PER_NODE"
-echo "SLURM CPUs per Task: $SLURM_CPUS_PER_TASK" 
 echo "Allocated GPU(s): $CUDA_VISIBLE_DEVICES"
 echo "------------------------------------------------------------------------"
 
 # Load necessary modules
 echo "Loading modules..."
-module purge 
-module load python/miniconda3-py3.9 
+module purge
+module load python/miniconda3-py3.9
 echo "Modules loaded."
+echo "------------------------------------------------------------------------"
 
-echo "------------------------------------------------------------------------"
-echo "Python version:"
-python --version
-echo "Conda prefix: $CONDA_PREFIX"
-echo "------------------------------------------------------------------------"
+# # Remove old Conda environment 
+# conda env remove --n rfdetr_env --yes
+# if [ $? -ne 0 ]; then
+#     echo "Warning: Failed to remove old Conda environment."
+# fi
+
+# # Create Conda environment from file
+# ENV_YAML_PATH="~/pol_id/detection/rf_detr_environment.yaml" 
+# echo "Creating Conda environment: rfdetr_env from $ENV_YAML_PATH"
+# conda env create -f $ENV_YAML_PATH
+# if [ $? -ne 0 ]; then
+#     echo "ERROR: Failed to create Conda environment."
+#     exit 1
+# fi
+# echo "Conda environment created."
+# echo "------------------------------------------------------------------------"
 
 # Activate custom Conda environment
-echo "Activating Conda environment: pollen_classification_env"
-source activate pollen_classification_env
+echo "Activating Conda environment: rfdetr_env"
+source activate rfdetr_env
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate Conda environment."
     exit 1
@@ -50,8 +60,12 @@ echo "Conda environment activated. Current Conda env: $CONDA_DEFAULT_ENV"
 echo "Python path: $(which python)"
 echo "------------------------------------------------------------------------"
 
+# # Install pip dependencies to user account
+# pip install --user rfdetr
+# # pip install --user roboflow
+
 # Navigate to Script Directory
-TARGET_DIR=~/pol_id/classification/src/parallel_fusion
+TARGET_DIR=~/pol_id/detection/src
 echo "Navigating to script directory: $TARGET_DIR"
 cd $TARGET_DIR
 if [ $? -ne 0 ]; then
@@ -61,13 +75,13 @@ fi
 echo "Current directory after cd: $(pwd)"
 echo "------------------------------------------------------------------------"
 
-# Running Python Script for Parallel Fusion Model
-PYTHON_SCRIPT="parallel_fusion_model.py" # Name of your new Python script
-echo "Running Python script: $PYTHON_SCRIPT"
+# Running Python Script for RF-DETR Model
+PYTHON_SCRIPT="train_rf_detr_model.py"  
+echo "Running Python script: $PYTHON_SCRIPT with torchrun"
 echo "Start time: $(date)"
 echo "------------------------------------------------------------------------"
 
-python $PYTHON_SCRIPT
+torchrun --nproc_per_node=1 $PYTHON_SCRIPT
 
 # Capture exit status of the Python script
 EXIT_STATUS=$?
