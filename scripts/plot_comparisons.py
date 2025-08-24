@@ -14,7 +14,7 @@ def normalize_taxon(taxon):
 
 # Path definitions 
 base_dir = '/home/yash/POL-ID/outputs/'
-run_folder = '76' 
+run_folder = 'FINAL_77_WEIGHTED_0,1' 
 
 sample_dir = os.path.join(base_dir, 'full_pipeline_outputs', run_folder)
 expert_path = os.path.join(base_dir, 'expert_compositions.csv')
@@ -99,4 +99,4 @@ for sample in expert_df['Sample'].unique():
     plt.savefig(os.path.join(plots_dir, f'{sample}_comparison_bar.png'))
     plt.close()
 
-    print(f"Plots and top 3 comparison saved for {sample}")
+    print(f"Plots and top 5 comparison saved for {sample}")

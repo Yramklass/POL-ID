@@ -1,7 +1,6 @@
 import os
 import torch
 import cv2
-from ultralytics import YOLO
 from torchvision import transforms
 from PIL import Image
 import numpy as np
@@ -17,13 +16,14 @@ import seaborn as sns
 import math
 import sys
 from sklearn.metrics import silhouette_score, davies_bouldin_score
+from rfdetr import RFDETRSmall
 
 
 
 
 # Configuration  
 IMG_SIZE = 224  
-YOLO_MODEL_PATH = "/scratch/rmkyas002/best.pt"
+DETR_MODEL_PATH = "/scratch/rmkyas002/checkpoint_best_total.pth" 
 CLASSIFIER_MODEL_PATH = "/scratch/rmkyas002/pollen_parallel_fusion_final_full.pth"
 SLIDES_DIR = sys.argv[1]
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -97,8 +97,7 @@ class ParallelFusionModel(nn.Module):
         else:
             return output
 
-DETECTOR_CONF_THRESHOLD = 0.5
-CLASSIFIER_CONFIDENCE_THRESHOLD = 0.5 
+CONFIDENCE_THRESHOLD = 0.5  # Below this, trigger clustering
 CROP_PADDING = 10  # Pixels to pad around detected pollen grains
 
 # Preprocessing 
@@ -112,8 +111,10 @@ preprocess = transforms.Compose([
 ])
 
 # Load Models
-print("\nLoading YOLO detector...")
-detector = YOLO(YOLO_MODEL_PATH)
+print("\nInstantiating RF-DETR detector...")
+# Just need to instantiate the model class.
+# The weights will be loaded during the prediction step.
+detector = RFDETRSmall()
 
 print("Loading ParallelFusion classifier...")
 model = torch.load(CLASSIFIER_MODEL_PATH, map_location=DEVICE, weights_only=False)
@@ -130,23 +131,38 @@ low_conf_images = []
 
 # Inference Pipeline 
 def detect_and_crop(image_path):
+    # RF-DETR's predict method takes the image path and the model path.
+    # It handles loading the weights and running inference.
+    results = detector.predict(image_path, model_path=DETR_MODEL_PATH)
+
+    # The results object is a dictionary containing PyTorch tensors
+    pred_boxes = results['boxes']   # Tensor of shape [N, 4]
+    pred_scores = results['scores'] # Tensor of shape [N]
+
     image = cv2.imread(image_path)
-    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    results = detector(image_rgb)[0]  # Get the first batch result
 
     crops = []
-    for box in results.boxes:
-        x1, y1, x2, y2 = map(int, box.xyxy[0])
-        conf = float(box.conf[0])
-        # Pad and clip
+    # Iterate through the returned boxes and their corresponding scores
+    for box, score in zip(pred_boxes, pred_scores):
+        # The score is the detection confidence
+        conf = score.item()
+
+        x1, y1, x2, y2 = map(int, box)
+
         x1 = max(0, x1 - CROP_PADDING)
         y1 = max(0, y1 - CROP_PADDING)
         x2 = min(image.shape[1], x2 + CROP_PADDING)
         y2 = min(image.shape[0], y2 + CROP_PADDING)
-        crop = image_rgb[y1:y2, x1:x2]
-        crops.append((crop, conf))
-    return crops
 
+        # Crop from the original image
+        crop_bgr = image[y1:y2, x1:x2]
+
+        # Convert the BGR crop to RGB for the classifier model
+        crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
+
+        crops.append((crop_rgb, conf))
+
+    return crops
 
 print(f"\nRunning detection and classification on slides in: {SLIDES_DIR}")
 
@@ -155,44 +171,25 @@ for file in tqdm(os.listdir(SLIDES_DIR)):
         continue
 
     image_path = os.path.join(SLIDES_DIR, file)
-    all_crops = detect_and_crop(image_path)
+    crops = detect_and_crop(image_path)
 
-    # Batching Logic 
-    batch_tensors = []
-    batch_images = [] # To keep track of original crops for clustering
-
-    # 1. Collect all valid crops from the image
-    for crop_img, det_conf in all_crops:
-        if det_conf >= DETECTOR_CONF_THRESHOLD:
-            image_pil = Image.fromarray(crop_img)
-            input_tensor = preprocess(image_pil).to(DEVICE)
-            batch_tensors.append(input_tensor)
-            batch_images.append(crop_img)
-
-    # 2. If there are valid crops, process them as a single batch
-    if batch_tensors:
-        # Stack individual tensors into a single batch tensor
-        input_batch = torch.stack(batch_tensors)
+    for crop_img, det_conf in crops:
+        image_pil = Image.fromarray(crop_img)
+        input_tensor = preprocess(image_pil).unsqueeze(0).to(DEVICE)
 
         with torch.no_grad():
-            # Run the model ONCE on the entire batch
-            logits, embeddings = model(input_batch, return_embeddings=True)
+            logits, embeddings = model(input_tensor, return_embeddings=True)
             probs = torch.softmax(logits, dim=1)
-            confidences, pred_classes = torch.max(probs, dim=1)
+            conf, pred_class = torch.max(probs, dim=1)
+            conf = conf.item()
 
-        # 3. Iterate through the batch results
-        for i in range(len(confidences)):
-            conf = confidences[i].item()
-            pred_class = pred_classes[i].item()
+        if conf >= CONFIDENCE_THRESHOLD:
+            class_name = class_names[pred_class.item()]
+            predictions_summary[class_name] += 1
+        else:
+            low_conf_embeddings.append(embeddings.cpu().numpy().squeeze())
+            low_conf_images.append(crop_img)
 
-            if conf >= CLASSIFIER_CONFIDENCE_THRESHOLD:
-                class_name = class_names[pred_class]
-                predictions_summary[class_name] += 1
-            else:
-                embedding = embeddings[i].cpu().numpy().squeeze()
-                low_conf_embeddings.append(embedding)
-                low_conf_images.append(batch_images[i])
-                
 # Cluster Unknown Grains
 cluster_summary = defaultdict(int)
 

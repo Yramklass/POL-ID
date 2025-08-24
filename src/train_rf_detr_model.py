@@ -23,7 +23,7 @@ def train_pollen_detector():
         dataset_dir=dataset_directory,
         epochs=200,          
         batch_size=8,        
-        grad_accum_steps=2,  # Effective batch size = batch_size * grad_accum_steps
+        grad_accum_steps=2,  # Effective batch size = batch_size * grad_accum_steps = 16
         lr=1e-4,            
         output_dir=output_directory,
         world_size=1,

@@ -7,6 +7,8 @@ import shutil # For cleaning up output directory
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
+import re # Added for normalization
+from collections import defaultdict # Added for easier counting
 
 # CONFIGURATION
 script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -15,8 +17,24 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "processed_crops")
 SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
 SEED = 42 # For reproducible splits
 
+# Map for merging taxa.
+# Key: original taxon name, Value: new combined taxon name.
+TAXON_MERGE_MAP = {
+    "PAL0007": "Monocot_sp_5",
+    "PAL0008": "Monocot_sp_5"
+}
+
 # Initialize random seed
 random.seed(SEED)
+
+def normalize_taxon_name(name):
+    """
+    Normalizes taxon names by removing "Supp" prefixes and extra whitespace.
+    e.g., "Supp_Daisy sp. 6" -> "Daisy sp. 6"
+    """
+    # Case-insensitive removal of "Supp" or "Supp_" at the beginning of the string
+    name = re.sub(r'^Supp_?\s*', '', name, flags=re.IGNORECASE)
+    return name.strip()
 
 def group_stacks(image_files):
     """
@@ -26,11 +44,9 @@ def group_stacks(image_files):
     stacks = []
     current_stack = []
     # Sort files to ensure consistent stack grouping if not already sorted
-    # This is important if "box" isn't always the absolute last or if order matters
     sorted_image_files = sorted(image_files)
 
     for fname in sorted_image_files:
-
         if "box" in fname.lower(): # Assuming "box" marks the end of a distinct slide/stack
             stacks.append(list(current_stack)) # Add a copy of the current stack
             current_stack = [] # Reset for the next stack
@@ -38,8 +54,6 @@ def group_stacks(image_files):
             current_stack.append(fname)
 
     # Add any remaining files as the last stack if it's not empty
-    # This handles cases where the last sequence might not end with a "box" file,
-    # or if there's only one stack without a "box" file.
     if current_stack:
         stacks.append(list(current_stack))
     return stacks
@@ -51,25 +65,20 @@ def slugify(name):
     name = name.replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
     return "".join(c for c in name if c.isalnum() or c == '_').strip('_')
 
-
-def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name, id_to_category_map):
+def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name, id_to_category_map, taxon_merge_map):
     """
     Crops objects from a single image based on its annotations and saves them.
-    Args:
-        image_path (str): Path to the source image.
-        annotations_for_image (list): List of annotation objects for this specific image.
-        output_base_dir (str): The base directory for the current split (e.g., OUTPUT_DIR/train).
-        image_name (str): The filename of the source image.
-        id_to_category_map (dict): Mapping from category_id to category_name for this annotation set.
+    Returns the number of crops successfully saved from this image.
     """
+    crops_saved_count = 0
     try:
         image = Image.open(image_path)
     except FileNotFoundError:
         print(f"Warning: Image file not found {image_path}, skipping.")
-        return
+        return 0
     except Exception as e:
         print(f"Warning: Could not open image {image_path}, error: {e}, skipping.")
-        return
+        return 0
 
     for ann_idx, ann in enumerate(annotations_for_image):
         try:
@@ -79,11 +88,15 @@ def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name
                 continue
 
             cropped = image.crop((x, y, x + w, y + h))
-
             label_id = ann["category_id"]
-            # Use the provided id_to_category_map from the specific annotation file
             raw_label_name = id_to_category_map.get(label_id, f"unknown_category_{label_id}")
-            label_name_slug = slugify(raw_label_name)
+
+            # MODIFIED: Normalize the label from the JSON file to handle "Supp" prefixes
+            normalized_label_name = normalize_taxon_name(raw_label_name)
+
+            # Apply the taxon merge map to the *normalized* name
+            final_label_name = taxon_merge_map.get(normalized_label_name, normalized_label_name)
+            label_name_slug = slugify(final_label_name)
 
             label_dir = os.path.join(output_base_dir, label_name_slug)
             os.makedirs(label_dir, exist_ok=True)
@@ -91,8 +104,11 @@ def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name
             # Create a unique name for the crop
             crop_name = f"{os.path.splitext(image_name)[0]}_crop{ann.get('id', ann_idx)}.jpg"
             cropped.save(os.path.join(label_dir, crop_name))
+            crops_saved_count += 1
         except Exception as e:
             print(f"Error processing annotation {ann.get('id', 'N/A')} for image {image_name}: {e}")
+
+    return crops_saved_count
 
 def write_stack_counts_to_csv(stack_counts, output_dir):
     """Writes the taxon stack counts to a CSV file."""
@@ -112,19 +128,48 @@ def plot_stack_counts(stack_counts, output_dir):
     sorted_taxa = sorted(stack_counts.keys(), key=lambda k: stack_counts[k], reverse=True)
     sorted_counts = [stack_counts[k] for k in sorted_taxa]
 
-    plt.figure(figsize=(10, max(8, len(sorted_taxa) * 0.4))) # Adjust height based on number of taxa
+    plt.figure(figsize=(10, max(8, len(sorted_taxa) * 0.4)))
     plt.barh(sorted_taxa, sorted_counts)
     plt.xlabel("Number of Stacks")
     plt.ylabel("Taxon")
     plt.title("Number of Stacks per Taxon")
-    plt.gca().invert_yaxis() # Display the taxon with the most stacks at the top
+    plt.gca().invert_yaxis()
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close()
 
+def write_comprehensive_summary(taxon_stats, output_dir):
+    """Writes a comprehensive summary of counts to the console and a CSV file."""
+    output_path = os.path.join(output_dir, "comprehensive_taxon_summary.csv")
+    print("\n--- Comprehensive Taxon Summary ---")
+    print(f"Writing summary to {output_path}...")
+
+    header = ['Taxon', 'Original Images', 'Stacks', 'Total Cropped Grains']
+    rows = []
+    for taxon_slug, counts in sorted(taxon_stats.items()):
+        rows.append([
+            taxon_slug,
+            counts['original_image_count'],
+            counts['stack_count'],
+            counts['cropped_grain_count']
+        ])
+
+    try:
+        with open(output_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(header)
+            writer.writerows(rows)
+    except Exception as e:
+        print(f"Error writing summary CSV: {e}")
+
+    print(f"{header[0]:<30} | {header[1]:>15} | {header[2]:>8} | {header[3]:>20}")
+    print("-" * 80)
+    for row in rows:
+        print(f"{row[0]:<30} | {row[1]:>15} | {row[2]:>8} | {row[3]:>20}")
+    print("---------------------------------")
+
 
 def main():
-    # Clean and create output directories
     if os.path.exists(OUTPUT_DIR):
         print(f"Cleaning up existing output directory: {OUTPUT_DIR}")
         shutil.rmtree(OUTPUT_DIR)
@@ -132,8 +177,9 @@ def main():
         os.makedirs(os.path.join(OUTPUT_DIR, split_name), exist_ok=True)
     print(f"Created output directory structure in: {OUTPUT_DIR}")
 
-    from collections import defaultdict
+    # MODIFIED: Use defaultdict for easier aggregation and add a comprehensive stats tracker
     taxon_to_stacks = defaultdict(list)
+    taxon_stats = defaultdict(lambda: {'original_image_count': 0, 'stack_count': 0, 'cropped_grain_count': 0})
 
     print("Collecting image stacks from all taxa...")
     for taxon_folder_name in os.listdir(BASE_DIR):
@@ -141,9 +187,23 @@ def main():
         if taxon_folder_name == os.path.basename(OUTPUT_DIR) or not os.path.isdir(taxon_base_path):
             continue
 
-        print(f"  Processing taxon: {taxon_folder_name}")
+        # MODIFIED: Normalize the folder name to handle "Supp_" prefixes
+        normalized_folder_name = normalize_taxon_name(taxon_folder_name)
+
+        # Apply the merge map to the *normalized* name
+        effective_taxon_name = TAXON_MERGE_MAP.get(normalized_folder_name, normalized_folder_name)
+        final_slug = slugify(effective_taxon_name)
+        
+        if normalized_folder_name != taxon_folder_name or effective_taxon_name != normalized_folder_name:
+            print(f"  Processing taxon: {taxon_folder_name} (grouping into -> {final_slug})")
+        else:
+            print(f"  Processing taxon: {taxon_folder_name}")
+
         image_files_in_taxon = [f for f in os.listdir(taxon_base_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
         annotation_file_path = os.path.join(taxon_base_path, "instances_default.json")
+        
+        # NEW: Track original image count
+        taxon_stats[final_slug]['original_image_count'] += len(image_files_in_taxon)
 
         if not image_files_in_taxon:
             print(f"    No image files found in {taxon_folder_name}, skipping.")
@@ -153,70 +213,57 @@ def main():
             continue
 
         stacks_from_taxon = group_stacks(image_files_in_taxon)
+        # NEW: Track stack count
+        taxon_stats[final_slug]['stack_count'] += len(stacks_from_taxon)
+
         if not stacks_from_taxon:
             print(f"    No stacks formed for taxon {taxon_folder_name}, skipping.")
             continue
 
         print(f"    Found {len(stacks_from_taxon)} stacks for taxon {taxon_folder_name}.")
 
-        slug = slugify(taxon_folder_name)
         for stack in stacks_from_taxon:
-            taxon_to_stacks[slug].append({
+            taxon_to_stacks[final_slug].append({
                 'files': stack,
-                'taxon_name': slug,
+                'taxon_name': final_slug,
                 'annotation_file': annotation_file_path,
                 'taxon_base_path': taxon_base_path
             })
 
-    # Filter out taxa with < 3 stacks
     taxon_to_stacks = {k: v for k, v in taxon_to_stacks.items() if len(v) >= 3}
     print(f"\nTotal valid taxa with >= 3 stacks: {len(taxon_to_stacks)}")
 
-    # Generate and save stack counts
     taxon_stack_counts = {taxon: len(stacks) for taxon, stacks in taxon_to_stacks.items()}
     if taxon_stack_counts:
         write_stack_counts_to_csv(taxon_stack_counts, OUTPUT_DIR)
         plot_stack_counts(taxon_stack_counts, OUTPUT_DIR)
 
-    # Split each taxon into train/val/test
     train_stacks, val_stacks, test_stacks = [], [], []
     from math import floor
 
     for taxon, stacks in taxon_to_stacks.items():
         random.shuffle(stacks)
         n = len(stacks)
-
-        # Ensure at least 1 stack per split
         n_train = max(1, floor(n * SPLIT_RATIOS['train']))
         n_val = max(1, floor(n * SPLIT_RATIOS['val']))
         n_test = n - (n_train + n_val)
-
-        # If test gets < 1, borrow from val (or train)
         if n_test < 1:
             n_test = 1
             if n_val > 1:
                 n_val -= 1
             elif n_train > 1:
                 n_train -= 1
-
-        # Final safeguard if still imbalanced
         total = n_train + n_val + n_test
         if total < n:
-            n_train += (n - total)  # Priority: train > test > val
+            n_train += (n - total)
 
-        # Assign
-        train_stacks += stacks[:n_train]
-        val_stacks += stacks[n_train:n_train + n_val]
-        test_stacks += stacks[n_train + n_val:n_train + n_val + n_test]
-
-        # Debug print per-taxon split
+        train_stacks.extend(stacks[:n_train])
+        val_stacks.extend(stacks[n_train:n_train + n_val])
+        test_stacks.extend(stacks[n_train + n_val:n_train + n_val + n_test])
         print(f"Taxon '{taxon}': total {n} -> train: {n_train}, val: {n_val}, test: {n_test}")
 
-    splits_map = {
-        "train": train_stacks,
-        "val": val_stacks,
-        "test": test_stacks
-    }
+    splits_map = {"train": train_stacks, "val": val_stacks, "test": test_stacks}
+    
     def count_taxa_in_split(stacks_list):
         return set(stack['taxon_name'] for stack in stacks_list)
 
@@ -237,24 +284,20 @@ def main():
         output_subdir_for_split = os.path.join(OUTPUT_DIR, split_name)
 
         for stack_info in stacks_in_split:
-            stack_files = stack_info['files']
-            annotation_file = stack_info['annotation_file']
-            taxon_base_path = stack_info['taxon_base_path']
-
             try:
-                with open(annotation_file, 'r') as f:
+                with open(stack_info['annotation_file'], 'r') as f:
                     coco_data = json.load(f)
             except Exception as e:
-                print(f"    Error loading annotation file {annotation_file}: {e}. Skipping stack.")
+                print(f"    Error loading annotation file {stack_info['annotation_file']}: {e}. Skipping stack.")
                 continue
 
             id_to_category_map = {cat["id"]: cat["name"] for cat in coco_data.get("categories", [])}
             image_id_map = {os.path.basename(img["file_name"]): img["id"] for img in coco_data.get("images", [])}
-            annotations_by_img_id = {}
+            annotations_by_img_id = defaultdict(list)
             for ann in coco_data.get("annotations", []):
-                annotations_by_img_id.setdefault(ann["image_id"], []).append(ann)
+                annotations_by_img_id[ann["image_id"]].append(ann)
 
-            for image_filename_in_stack in stack_files:
+            for image_filename_in_stack in stack_info['files']:
                 image_id = image_id_map.get(image_filename_in_stack)
                 if image_id is None:
                     print(f"    Warning: Image {image_filename_in_stack} not found in annotation JSON. Skipping.")
@@ -262,20 +305,26 @@ def main():
 
                 annotations_for_current_image = annotations_by_img_id.get(image_id, [])
                 if not annotations_for_current_image:
-                    print(f"      --> INFO: Skipping {image_filename_in_stack} because it has no annotations in the JSON.")
                     continue
 
-                image_full_path = os.path.join(taxon_base_path, image_filename_in_stack)
-                crop_and_save(image_full_path, annotations_for_current_image,
-                                output_subdir_for_split, image_filename_in_stack, id_to_category_map)
+                image_full_path = os.path.join(stack_info['taxon_base_path'], image_filename_in_stack)
+                
+                # MODIFIED: Capture the returned crop count
+                num_cropped = crop_and_save(image_full_path, annotations_for_current_image,
+                                             output_subdir_for_split, image_filename_in_stack,
+                                             id_to_category_map, TAXON_MERGE_MAP)
+                
+                # NEW: Add to our stats tracker
+                final_slug = stack_info['taxon_name']
+                taxon_stats[final_slug]['cropped_grain_count'] += num_cropped
 
     print("\nCropping and splitting process complete.")
+    # NEW: Call the new summary function
+    write_comprehensive_summary(taxon_stats, OUTPUT_DIR)
     print_dataset_summary(OUTPUT_DIR)
 
-
-
 def print_dataset_summary(output_dir):
-    print("\n--- Dataset Summary ---")
+    print("\n--- Dataset Summary (Cropped Images per Split) ---")
     for split in ['train', 'val', 'test']:
         split_path = os.path.join(output_dir, split)
         print(f"\nSplit: {split}")
@@ -295,19 +344,19 @@ def print_dataset_summary(output_dir):
         for taxon_name_slug, num_images in sorted(taxon_counts.items()):
              print(f"  Taxon: {taxon_name_slug}, Images: {num_images}")
         print(f"  Total images in {split}: {total_images_in_split}")
-    print("-----------------------")
+    print("--------------------------------------------------")
 
 
 if __name__ == "__main__":
     try:
         from sklearn.model_selection import train_test_split
     except ImportError:
-        print("Error: scikit-learn is required for stratified splitting. Please install it (pip install scikit-learn).")
+        print("Error: scikit-learn is required. Please install it (pip install scikit-learn).")
         exit()
     try:
         import matplotlib
     except ImportError:
-        print("Error: matplotlib is required for plotting. Please install it (pip install matplotlib).")
+        print("Error: matplotlib is required. Please install it (pip install matplotlib).")
         exit()
 
     if not np.isclose(sum(SPLIT_RATIOS.values()), 1.0):

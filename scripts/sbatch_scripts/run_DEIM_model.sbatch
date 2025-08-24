@@ -68,7 +68,7 @@ echo "------------------------------------------------------------------------"
 # pip install --user scipy
 # pip install --user calflops
 # pip install --user transformers
-pip install --user git+https://github.com/dnth/DEIM.git@v0.2.1
+# pip install --user git+https://github.com/dnth/DEIM.git@v0.2.1
 
 ### DEIM LIBRARY TRAINING
 # # Training Command 

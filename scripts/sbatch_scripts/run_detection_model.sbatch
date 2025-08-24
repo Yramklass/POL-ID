@@ -33,21 +33,21 @@ echo "Modules loaded."
 echo "------------------------------------------------------------------------"
 
 # Remove old Conda environment 
-conda env remove --n yolo_detection_env --yes
-if [ $? -ne 0 ]; then
-    echo "Warning: Failed to remove old Conda environment."
-fi
+# conda env remove --n deim --yes
+# if [ $? -ne 0 ]; then
+#     echo "Warning: Failed to remove old Conda environment."
+# fi
 
 # Create Conda environment from file
-ENV_YAML_PATH="~/pol_id/detection/detection_environment.yaml" 
-echo "Creating Conda environment: yolo_detection_env from $ENV_YAML_PATH"
-conda env create -f $ENV_YAML_PATH
-if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to create Conda environment."
-    exit 1
-fi
-echo "Conda environment created."
-echo "------------------------------------------------------------------------"
+# ENV_YAML_PATH="~/pol_id/detection/detection_environment.yaml" 
+# echo "Creating Conda environment: yolo_detection_env from $ENV_YAML_PATH"
+# conda env create -f $ENV_YAML_PATH
+# if [ $? -ne 0 ]; then
+#     echo "ERROR: Failed to create Conda environment."
+#     exit 1
+# fi
+# echo "Conda environment created."
+# echo "------------------------------------------------------------------------"
 
 # Activate custom Conda environment
 echo "Activating Conda environment: yolo_detection_env"
@@ -60,9 +60,9 @@ echo "Conda environment activated. Current Conda env: $CONDA_DEFAULT_ENV"
 echo "Python path: $(which python)"
 echo "------------------------------------------------------------------------"
 
-# Install pip dependencies to user account
-pip install --user ultralytics
-pip install --user opencv-python
+# # Install pip dependencies to user account
+# pip install --user ultralytics
+# pip install --user opencv-python
 
 # Navigate to Script Directory
 TARGET_DIR=~/pol_id/detection/src

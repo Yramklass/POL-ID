@@ -23,11 +23,11 @@ import os
 DATASET_YAML_PATH = Path("/scratch/rmkyas002/yolo_detection_data/data.yaml")
 
 OUTPUT_PARENT_DIR = Path("/scratch/rmkyas002/yolo_outputs") 
-RUN_NAME = "yolov11_run1"
+RUN_NAME = "yolov8_run1"
 OUTPUT_PATH = OUTPUT_PARENT_DIR / RUN_NAME
 
 # Model & Training Hyperparameters
-MODEL_CHOICE = 'yolo11m.pt'  # 'n' for nano, 's'/'m'/'l'/'x' for small/medium/large/extra-large
+MODEL_CHOICE = 'yolov8m.pt'  # 'n' for nano, 's'/'m'/'l'/'x' for small/medium/large/extra-large
 EPOCHS = 100                 # Number of training epochs
 PATIENCE = 30
 IMAGE_SIZE = 640             # Target image size for training

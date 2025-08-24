@@ -11,6 +11,9 @@ import copy
 import matplotlib.pyplot as plt 
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import classification_report
+import pandas as pd
+
 try:
     import seaborn as sns 
     SEABORN_AVAILABLE = True
@@ -34,12 +37,15 @@ def get_data_transforms(img_size=IMG_SIZE):
     """
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+            transforms.RandomResizedCrop(IMG_SIZE, scale=(0.7, 1.0)),
             transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(45),
+            transforms.RandomVerticalFlip(),
+            # transforms.TrivialAugmentWide(), # Auto-augmentation- reduced accuracy
+            transforms.RandomRotation(45), 
             transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.ToTensor(),
-            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
+            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+            transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),
         ]),
         'val': transforms.Compose([
             transforms.Resize(img_size + 32), 
@@ -94,7 +100,7 @@ def load_data(base_data_dir, batch_size=32, img_size=IMG_SIZE, num_workers=1):
 
 # Model Creation Function 
 
-def create_coatnet_model(num_classes, model_name='coatnet_1_rw_224', pretrained=True):
+def create_coatnet_model(num_classes, model_name='coatnet_rmlp_1_rw2_224.sw_in12k_ft_in1k', pretrained=True):
     """
     Creates a CoAtNet model using timm.
     """
@@ -216,9 +222,11 @@ def plot_training_history(history, phase_name="", output_dir="."):
     plt.close(fig) 
 
 # Evaluation Function 
-def evaluate_model(model, dataloader, device, class_names, criterion=None, output_dir="."): 
+def evaluate_model(model, dataloader, device, class_names, criterion=None, output_dir="."):
     """
-    Evaluates the model on a given dataloader and prints classification metrics.
+    Evaluates the model and provides overall metrics, per-class metrics,
+    a confusion matrix, a CSV report, and a performance bar chart.
+    Includes error handling for the per-class metric generation.
     """
     model.eval()
     all_preds = []
@@ -232,7 +240,6 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
         for inputs, labels in dataloader:
             inputs = inputs.to(device)
             labels = labels.to(device)
-
             outputs = model(inputs)
             _, preds = torch.max(outputs, 1)
 
@@ -250,6 +257,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
+    # --- OVERALL METRICS ---
     accuracy = accuracy_score(all_labels, all_preds)
     precision_macro = precision_score(all_labels, all_preds, average='macro', zero_division=0)
     recall_macro = recall_score(all_labels, all_preds, average='macro', zero_division=0)
@@ -260,12 +268,52 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     print(f"Macro Recall: {recall_macro:.4f}")
     print(f"Macro F1-Score: {f1_macro:.4f}")
 
+    # --- NEW: ROBUST PER-CLASS METRICS CALCULATION AND SAVING ---
+    try:
+        print("\nPer-Class Metrics:")
+        # Use classification_report, output_dict=True makes it easy to process
+        report = classification_report(all_labels, all_preds, target_names=class_names, output_dict=True, zero_division=0)
+        
+        # Convert to a Pandas DataFrame for saving and display
+        df_report = pd.DataFrame(report).transpose()
+        print(df_report)
+
+        # Save the report to a CSV file
+        csv_save_path = os.path.join(output_dir, 'per_class_metrics.csv')
+        df_report.to_csv(csv_save_path)
+        print(f"\nPer-class metrics saved to {csv_save_path}")
+
+        # Plot and save per-class F1-scores
+        if SEABORN_AVAILABLE:
+            per_class_f1 = {name: report[name]['f1-score'] for name in class_names}
+            
+            plt.figure(figsize=(max(10, len(class_names) * 0.5), 6))
+            sns.barplot(x=list(per_class_f1.keys()), y=list(per_class_f1.values()), palette="viridis")
+            plt.xlabel('Pollen Class')
+            plt.ylabel('F1-Score')
+            plt.title('Per-Class F1-Scores')
+            plt.xticks(rotation=45, ha='right')
+            plt.ylim(0, 1)
+            plt.tight_layout()
+
+            plot_save_path = os.path.join(output_dir, 'per_class_f1_scores.png')
+            plt.savefig(plot_save_path)
+            print(f"Per-class F1-score plot saved to {plot_save_path}")
+            plt.close()
+
+    except Exception as e:
+        # Catch any error during the report generation and print a warning
+        print(f"\nWarning: Could not generate or save per-class metrics.")
+        print(f"   Error: {e}")
+        print("   Skipping per-class report and plot, but continuing with confusion matrix...")
+
+    # --- CONFUSION MATRIX (existing code runs regardless of the above try...except) ---
     cm = confusion_matrix(all_labels, all_preds)
     print("\nConfusion Matrix:")
     
     cm_plot_save_path = os.path.join(output_dir, 'confusion_matrix_test.png')
     if SEABORN_AVAILABLE:
-        plt.figure(figsize=(max(8, len(class_names) * 0.8), max(6, len(class_names) * 0.6))) 
+        plt.figure(figsize=(max(8, len(class_names) * 0.8), max(6, len(class_names) * 0.6)))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
         plt.xlabel('Predicted Label')
         plt.ylabel('True Label')
@@ -273,8 +321,9 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
         plt.tight_layout()
         plt.savefig(cm_plot_save_path)
         print(f"Confusion matrix plot saved to {cm_plot_save_path}")
-        plt.close() 
+        plt.close()
     else:
+        # Fallback text-based confusion matrix
         header = "True\\Pred | " + " | ".join(f"{name[:5]:<5}" for name in class_names)
         print(header)
         print("-" * len(header))
@@ -300,7 +349,7 @@ if __name__ == '__main__':
     print(f"Checkpoints and plots will be saved in: {output_dir}")
 
 
-    MODEL_NAME = 'coatnet_1_rw_224'
+    MODEL_NAME = 'coatnet_rmlp_1_rw2_224.sw_in12k_ft_in1k' # Imagenet 12k version
     BATCH_SIZE = 16 
     NUM_WORKERS = 1 
     print(f"Using NUM_WORKERS = {NUM_WORKERS} for DataLoaders.")
@@ -308,13 +357,13 @@ if __name__ == '__main__':
 
     # Phase 1: Train only the head
     LR_PHASE1 = 1e-3
-    EPOCHS_PHASE1 = 15 
+    EPOCHS_PHASE1 = 25 
     CHECKPOINT_PHASE1 = os.path.join(output_dir, 'pollen_coatnet_phase1_head_best.pth')
 
     # Phase 2: Fine-tune the entire model
-    LR_BACKBONE_PHASE2 = 1e-5 
-    LR_HEAD_PHASE2 = 5e-5    
-    EPOCHS_PHASE2 = 30 
+    LR_BACKBONE_PHASE2 = 1e-4 
+    LR_HEAD_PHASE2 = 5e-4    
+    EPOCHS_PHASE2 = 50 
     CHECKPOINT_PHASE2 = os.path.join(output_dir, 'pollen_coatnet_phase2_full_best.pth')
 
     # Load Data 
@@ -346,9 +395,20 @@ if __name__ == '__main__':
     pollen_model.to(device)
     print(f"Model '{MODEL_NAME}' loaded on device: {device}")
 
-    # Loss Function 
-    criterion = nn.CrossEntropyLoss()
+    # Unweighted loss function
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    
+    # Calculate class weights for weighted loss function 
+    # print("\nCalculating class weights to handle imbalance...")
+    # class_counts = np.bincount(dataloaders['train'].dataset.targets)
+    # class_weights = 1. / torch.tensor(class_counts, dtype=torch.float)
+    # class_weights = class_weights / class_weights.sum() * num_classes # Normalize
+    # class_weights = class_weights.to(device)
 
+    # print(f"Class weights calculated and moved to {device}.")
+
+
+    # criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
     # PHASE 1: Train the classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning classifier head ---")
     print(f"Epochs: {EPOCHS_PHASE1}, LR: {LR_PHASE1}")

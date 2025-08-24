@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from pathlib import Path
+import pandas as pd
+from sklearn.metrics import classification_report
+
 try:
     import seaborn as sns
     SEABORN_AVAILABLE = True
@@ -322,7 +325,9 @@ def plot_training_history(history, phase_name="", output_dir="."):
 # Evaluation Function
 def evaluate_model(model, dataloader, device, class_names, criterion=None, output_dir="."):
     """
-    Evaluates the model on a given dataloader and prints classification metrics.
+    Evaluates the model and provides overall metrics, per-class metrics,
+    a confusion matrix, a CSV report, and a performance bar chart.
+    Includes error handling for the per-class metric generation.
     """
     model.eval()
     all_preds = []
@@ -336,7 +341,6 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
         for inputs, labels in dataloader:
             inputs = inputs.to(device)
             labels = labels.to(device)
-
             outputs = model(inputs)
             _, preds = torch.max(outputs, 1)
 
@@ -354,37 +358,80 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
+    # --- OVERALL METRICS ---
     accuracy = accuracy_score(all_labels, all_preds)
     precision_macro = precision_score(all_labels, all_preds, average='macro', zero_division=0)
     recall_macro = recall_score(all_labels, all_preds, average='macro', zero_division=0)
     f1_macro = f1_score(all_labels, all_preds, average='macro', zero_division=0)
-
+    
     print(f"Test Accuracy: {accuracy:.4f}")
     print(f"Macro Precision: {precision_macro:.4f}")
     print(f"Macro Recall: {recall_macro:.4f}")
     print(f"Macro F1-Score: {f1_macro:.4f}")
 
+    # --- NEW: ROBUST PER-CLASS METRICS CALCULATION AND SAVING ---
+    try:
+        print("\nPer-Class Metrics:")
+        # Use classification_report, output_dict=True makes it easy to process
+        report = classification_report(all_labels, all_preds, target_names=class_names, output_dict=True, zero_division=0)
+        
+        # Convert to a Pandas DataFrame for saving and display
+        df_report = pd.DataFrame(report).transpose()
+        print(df_report)
+
+        # Save the report to a CSV file
+        csv_save_path = os.path.join(output_dir, 'per_class_metrics.csv')
+        df_report.to_csv(csv_save_path)
+        print(f"\nPer-class metrics saved to {csv_save_path}")
+
+        # Plot and save per-class F1-scores
+        if SEABORN_AVAILABLE:
+            per_class_f1 = {name: report[name]['f1-score'] for name in class_names}
+            
+            plt.figure(figsize=(max(10, len(class_names) * 0.5), 6))
+            sns.barplot(x=list(per_class_f1.keys()), y=list(per_class_f1.values()), palette="viridis")
+            plt.xlabel('Pollen Class')
+            plt.ylabel('F1-Score')
+            plt.title('Per-Class F1-Scores')
+            plt.xticks(rotation=45, ha='right')
+            plt.ylim(0, 1)
+            plt.tight_layout()
+
+            plot_save_path = os.path.join(output_dir, 'per_class_f1_scores.png')
+            plt.savefig(plot_save_path)
+            print(f"Per-class F1-score plot saved to {plot_save_path}")
+            plt.close()
+
+    except Exception as e:
+        # Catch any error during the report generation and print a warning
+        print(f"\nWarning: Could not generate or save per-class metrics.")
+        print(f"   Error: {e}")
+        print("   Skipping per-class report and plot, but continuing with confusion matrix...")
+
+    # --- CONFUSION MATRIX (existing code runs regardless of the above try...except) ---
     cm = confusion_matrix(all_labels, all_preds)
     print("\nConfusion Matrix:")
-    cm_plot_save_path = os.path.join(output_dir, 'confusion_matrix_test_fusion.png')
+    
+    cm_plot_save_path = os.path.join(output_dir, 'confusion_matrix_test.png')
     if SEABORN_AVAILABLE:
         plt.figure(figsize=(max(8, len(class_names) * 0.8), max(6, len(class_names) * 0.6)))
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
         plt.xlabel('Predicted Label')
         plt.ylabel('True Label')
-        plt.title('Confusion Matrix (ConvNext-Swin Fusion)')
+        plt.title('Confusion Matrix')
         plt.tight_layout()
         plt.savefig(cm_plot_save_path)
         print(f"Confusion matrix plot saved to {cm_plot_save_path}")
         plt.close()
     else:
+        # Fallback text-based confusion matrix
         header = "True\\Pred | " + " | ".join(f"{name[:5]:<5}" for name in class_names)
         print(header)
         print("-" * len(header))
         for i, row in enumerate(cm):
             row_str = f"{class_names[i][:5]:<9} | " + " | ".join(f"{val:<5}" for val in row)
             print(row_str)
-
+    
     return accuracy, precision_macro, recall_macro, f1_macro, cm
 
 
@@ -392,7 +439,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
 if __name__ == '__main__':
     # Configuration
     base_data_dir = "/scratch/rmkyas002/processed_crops" 
-    CLASS_LIST_FILE = None #'classes_to_include.txt' 
+    CLASS_LIST_FILE =  None
 
     script_location_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(script_location_dir, "training_outputs_parallel_fusion") 
@@ -409,14 +456,14 @@ if __name__ == '__main__':
 
     # Phase 1: Train only the fusion head
     LR_PHASE1_FUSION_HEAD = 1e-3
-    EPOCHS_PHASE1 = 20 
+    EPOCHS_PHASE1 = 25 
     CHECKPOINT_PHASE1 = os.path.join(output_dir, 'pollen_parallel_fusion_phase1_head_best.pth')
 
     # Phase 2: Fine-tune the entire model (backbones + head)
     LR_PHASE2_CONVNEXT = 1e-4
     LR_PHASE2_SWIN = 1e-4
     LR_PHASE2_FUSION_HEAD = 5e-4
-    EPOCHS_PHASE2 = 40 
+    EPOCHS_PHASE2 = 50 
     CHECKPOINT_PHASE2 = os.path.join(output_dir, 'pollen_parallel_fusion_phase2_full_best.pth')
 
     NUM_CLASSES_TO_USE = None # or None to use all
@@ -461,8 +508,19 @@ if __name__ == '__main__':
     pollen_model.to(device)
     print(f"Parallel Fusion Model loaded on device: {device}")
 
-    # Loss Function
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    # Unweighted loss function
+    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    # Calculate class weights for weighted loss function 
+    print("\nCalculating class weights to handle imbalance...")
+    class_counts = np.bincount(dataloaders['train'].dataset.targets)
+    class_weights = 1. / torch.tensor(class_counts, dtype=torch.float)
+    class_weights = class_weights / class_weights.sum() * num_classes # Normalize
+    class_weights = class_weights.to(device)
+
+    print(f"Class weights calculated and moved to {device}.")
+
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
 
     # Phase 1: Train the fusion classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning fusion classifier head ---")

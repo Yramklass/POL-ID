@@ -31,7 +31,7 @@ trainer = Trainer(conf)
 
 # All arguments are optional, if not specified, the default values for the model will be used.
 trainer.fit(
-    epochs=100,          # Number of training epochs
+    epochs=200,          # Number of training epochs
     save_best_only=True, # Save only the best model checkpoint
     lr=0.0001,           # Learning rate
     lr_gamma=0.1,        # Learning rate annealing factor

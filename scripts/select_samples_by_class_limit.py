@@ -9,6 +9,8 @@ def convert_taxon_name(taxon):
     if ' sp. ' in taxon:
         # Replace ' sp. ' with '_sp' and remove space before number
         return taxon.replace(' sp. ', '_sp')
+    if taxon.lower()=='uncertain':
+        return ("# {}".format(taxon))
     return taxon
 
 def select_samples_with_class_limit(csv_path, max_classes, output_file=None):
@@ -34,13 +36,13 @@ def select_samples_with_class_limit(csv_path, max_classes, output_file=None):
 
     # Prepare output
     output_lines = [
-        f"#✅ Selected {len(selected_samples)} samples",
-        f"#🔢 Total unique taxa: {len(included_taxa)}",
-        "\n#📦 Samples to include:"
+        f"#Selected {len(selected_samples)} samples",
+        f"#Total unique taxa: {len(included_taxa)}",
+        "\n#Samples to include:"
     ]
     output_lines.extend(f"#  - {s}" for s in selected_samples)
     output_lines.extend([
-        "\n#🌿 Taxa to include:",
+        "\n#Taxa to include:",
         *sorted(included_taxa)
     ])
 
