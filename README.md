@@ -1,4 +1,4 @@
-# POL-ID: Deep Learning for Pollen Detection and Classification in the Authentication of South African Honey🍯🔬
+# POL-ID: Deep Learning for Pollen Detection and Classification in the Authentication of South African Honey
 
 **POL-ID** is an end-to-end deep learning pipeline designed to automate the process of melissopalynology (the study of pollen in honey). By analyzing microscopic images of honey slides, this project detects and classifies pollen grains to determine the honey's floral and geographical origin, providing a powerful tool for quality control and authentication.
 
@@ -10,10 +10,10 @@ The system leverages state-of-the-art computer vision models to provide fast, ac
 
 ## Key Features
 
-* **🎯 High-Performance Pollen Detection:** Utilizes object detection models like **YOLOv8** and **DETR** to accurately locate and bound individual pollen grains on a microscopic slide.
-* **🧠 Advanced Pollen Classification:** Employs a novel **parallel fusion architecture** combining a **Swin Transformer** and a **ConvNeXt** model for robust and highly accurate species classification.
-* **🤖 Smart Clustering of Unknowns:** Integrates **UMAP** for dimensionality reduction and **HDBSCAN** to intelligently group low-confidence pollen grains, helping to identify rare types or highlight potential new species not present in the training data.
-* **📊 Comprehensive Reporting:** Generates a detailed final report including total pollen counts, species ratios (percentages), and a final honey classification (e.g., monofloral, multifloral).
+* **High-Performance Pollen Detection:** Utilizes object detection models like **YOLOv8** and **DETR** to accurately locate and bound individual pollen grains on a microscopic slide.
+* **Advanced Pollen Classification:** Employs a novel **parallel fusion architecture** combining a **Swin Transformer** and a **ConvNeXt** model for robust and highly accurate species classification.
+* **Smart Clustering of Unknowns:** Integrates **UMAP** for dimensionality reduction and **HDBSCAN** to intelligently group low-confidence pollen grains, helping to identify rare types or highlight potential new species not present in the training data.
+* **Comprehensive Reporting:** Generates a detailed final report including total pollen counts, species ratios (percentages), and a final honey classification (e.g., monofloral, multifloral).
 
 ---
 
@@ -85,7 +85,7 @@ The system aggregates the results from the high-confidence classifications and t
     ```
     *Activate the appropriate environment before running scripts (e.g., `conda activate detection`)*.
 
-3.  **Download the Pre-Trained Models** 📂
+3.  **Download the Pre-Trained Models** 
 
     The official pre-trained models for this project are available on the [**GitHub Releases page**](https://github.com/yramklass/POL-ID/releases/latest).
 
@@ -132,12 +132,12 @@ For users on a High-Performance Computing (HPC) cluster with a Slurm workload ma
 
 This repository contains scripts for the core pipeline, model training, data preparation, and results analysis.
 
-### 📂 Core Pipeline Scripts
+### Core Pipeline Scripts
 * `full_pipeline.py`: The main end-to-end pipeline using the **YOLOv8** detector.
 * `full_pipeline_detr.py`: An alternative end-to-end pipeline using a **DETR** detector.
 * `run_all_pipelines.py`: A wrapper script to execute the full pipeline for all honey samples sequentially.
 
-### 🧠 Model Training Scripts
+### Model Training Scripts
 * `yolo_model.py`: Trains the YOLOv8 object detection model.
 * `train_rf_detr_model.py` / `deimkit_training.py`: Scripts for training DETR-based object detection models.
 * `parallel_fusion_model.py`: Trains the parallel (ConvNeXt + Swin) classification model using a 2-phase strategy (head training, then full fine-tuning).
@@ -145,14 +145,14 @@ This repository contains scripts for the core pipeline, model training, data pre
 * `parallel_fusion_raytune.py`: Performs hyperparameter optimization for the parallel fusion model using Ray Tune.
 * `sequential_fusion_model.py`: Trains a `CoAtNet` model as an alternative classifier.
 
-### 🛠️ Data Preparation & Utilities
+### Data Preparation & Utilities
 * `prepare_detection_data.py`: Splits the detection dataset into train/val/test sets in YOLO format.
 * `crop_pollen.py`: Crops individual pollen grains from images using existing labels.
 * `extract_expert_compositions.py`: Parses expert honey composition data from Excel files into a standard CSV format.
 * `fix_class_folder_names.py` / `fix_detection_labels.py`: Utility scripts for dataset cleaning.
 * `select_samples_by_class_limit.py`: A script to select a subset of taxa for training based on specific criteria.
 
-### 📈 Analysis & Visualization Scripts
+### Analysis & Visualization Scripts
 * `plot_comparisons.py`: Generates plots comparing the model's output compositions against the expert-defined compositions.
 * `plot_expert_compositions.py`: Visualizes the ground-truth honey compositions from the expert data.
 * `plot_training_loss.py`: Plots training loss and validation mAP for DETR models.
@@ -165,11 +165,10 @@ This repository contains scripts for the core pipeline, model training, data pre
 If you use POL-ID in your research, please cite this work:
 ```bibtex
 @misc{polid2025,
-  author       = {Yash Ramklass},
-  title        = {POL-ID: Deep Learning for Pollen Detection and Classification in
-the Authentication of South African Honey},
-  year         = {2025},
-  publisher    = {GitHub},
-  journal      = {GitHub repository},
-  howpublished = {\url{[https://github.com/yramklass/POL-ID](https://github.com/yramklass/POL-ID)}}
+  author    = {Yash Ramklass},
+  title     = {POL-ID: Deep Learning for Pollen Detection and Classification in the Authentication of South African Honey},
+  year      = {2025},
+  publisher = {GitHub},
+  journal   = {GitHub repository},
+  url       = {https://github.com/yramklass/POL-ID}
 }
