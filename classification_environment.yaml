@@ -1,5 +1,4 @@
-# Environment for Swin Transformer / ConvNeXt based pollen grain classification
-
+# Environment for Hybrid CNN-Vision Transformer pollen grain classification (CoAtNet and Swin/ConvNeXt models)
 name: pollen_classification_env 
 channels:
   - pytorch
@@ -9,23 +8,19 @@ channels:
 dependencies:
   - python=3.9
   - pip
-  # PyTorch and related (Essential for Swin/ConvNeXt)
   - pytorch
   - torchvision
   - torchaudio
   - pytorch-cuda=11.8
-  # Core libraries for image processing, data handling, and utilities
-  - opencv # For loading/processing cropped images
+  - opencv
   - numpy
-  - matplotlib # For visualization, plotting training curves
-  - scikit-learn # For evaluation metrics (confusion matrix, F1-score, etc.)
-  - pillow # Image manipulation
-  - pyyaml # For configuration files
-  - tqdm # Progress bars
-  - pandas # For handling datasets, results
-  # timm (PyTorch Image Models)
+  - matplotlib 
+  - scikit-learn 
+  - pillow 
+  - pyyaml 
+  - tqdm 
+  - pandas 
   - timm
   - seaborn
-  - pip:
 
     

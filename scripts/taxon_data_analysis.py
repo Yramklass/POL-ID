@@ -1,15 +1,35 @@
+"""
+taxon_data_analysis.py
+
+Description:
+    Plots comparison of number of stacks vs F1 score for each taxa 
+
+Usage:
+    python taxon_data_analysis.py
+
+Inputs:
+    - Per-taxon metrics CSV file path (set in script: metrics_file)
+    - Taxon summary / stack counts CSV file path (set in script: taxon_summary_file)
+
+Outputs:
+    - Scatter plot comparing number of stacks to F1-score for each taxon
+"""
+
+
 import pandas as pd
 import matplotlib.pyplot as plt
 
 # File paths
-taxon_summary_file = "/home/yash/POL-ID/data/classification/processed_crops/comprehensive_taxon_summary.csv"
-metrics_file = "/home/yash/POL-ID/models/par_outputs/final_77_small/parallel_fusion/training_outputs_parallel_fusion/per_class_metrics.csv"
+# Path to taxon summary csv file (generated during crop processing with crop_pollen.py)
+taxon_summary_file = 'path/to/comprehensive_taxon_summary.csv'
+# Path to per-class metrics csv file (generated during evaluation in classifier training scripts)
+metrics_file = 'path/to/per_class_metrics.csv'
 
 # Load data
 taxon_summary = pd.read_csv(taxon_summary_file)
 metrics = pd.read_csv(metrics_file)
 
-# --- PART 1: Totals ---
+# Totals 
 total_images = taxon_summary["Original Images"].sum()
 total_stacks = taxon_summary["Stacks"].sum()
 total_cropped = taxon_summary["Total Cropped Grains"].sum()
@@ -19,14 +39,14 @@ print(f"Total Original Images: {total_images}")
 print(f"Total Stacks: {total_stacks}")
 print(f"Total Cropped Grains: {total_cropped}")
 
-# --- PART 2: Merge with metrics ---
+# Merge with metrics
 # Ensure taxon names align (strip whitespace, unify underscores vs no underscores)
 taxon_summary["Taxon"] = taxon_summary["Taxon"].str.strip().str.replace(" ", "_")
 metrics["taxon"] = metrics["taxon"].str.strip().str.replace(" ", "_")
 
 merged = pd.merge(metrics, taxon_summary, left_on="taxon", right_on="Taxon", how="inner")
 
-# --- PART 3: Graph F1 vs Stacks ---
+# Graph F1 vs Stacks 
 plt.figure(figsize=(8, 6))
 plt.scatter(merged["Stacks"], merged["f1-score"], color="royalblue", alpha=0.7)
 
@@ -56,7 +76,7 @@ plt.legend(
     bbox_to_anchor=(1.05, 1), 
     loc='upper left', 
     fontsize=7,
-    ncol=2  # <-- adjust this number for more/less columns
+    ncol=2 
 )
 
 plt.tight_layout()

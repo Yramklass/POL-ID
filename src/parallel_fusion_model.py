@@ -1,3 +1,48 @@
+"""
+parallel_fusion_model.py
+
+Description:
+    Trains a deep learning model for image classification using a parallel 
+    fusion architecture. This script combines features from a ConvNeXt and a 
+    Swin Transformer backbone, concatenates them, and feeds them into a final 
+    classifier head. 
+
+    The training process is structured in two phases:
+    1.  Feature Extraction: Only the final fusion classifier head is trained 
+        while the pre-trained backbones remain frozen.
+    2.  Fine-Tuning: The entire model (both backbones and the head) is 
+        unfrozen and trained end-to-end with differential learning rates.
+
+    The script handles data loading with augmentations, model creation, 
+    the two-phase training loop, and a comprehensive final evaluation on 
+    the test set.
+
+Usage:
+    # For direct execution (e.g., on a local machine or for testing)
+    python parallel_fusion_model.py
+
+    # For submitting the job to the Slurm workload manager
+    sbatch run_parallel_fusion_model.sbatch
+
+Inputs:
+    - Dataset directory (set in script: base_data_dir): Must be structured 
+      with 'train', 'val', and 'test' subdirectories, each containing 
+      class-specific folders of images.
+    - Optional class list file (set in script: CLASS_LIST_FILE): A .txt file 
+      listing specific classes to include in training and evaluation.
+
+Outputs:
+    (All files are saved to the 'training_outputs_parallel_fusion' directory)
+    - Phase 1 best model checkpoint (pollen_parallel_fusion_phase1_head_best.pth)
+    - Phase 2 best model checkpoint (pollen_parallel_fusion_phase2_full_best.pth)
+    - Final complete model with class names embedded (pollen_parallel_fusion_final_full.pth)
+    - Training/validation curve plots for Phase 1 and Phase 2
+    - Final evaluation reports on the test set:
+        - Per-class metrics table (per_class_metrics.csv)
+        - Per-class F1-score bar plot (per_class_f1_scores.png)
+        - Confusion matrix plot (confusion_matrix_test.png)
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -89,7 +134,7 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
         with open(class_file_path, 'r') as f:
             requested_classes = {line.strip() for line in f if line.strip() and not line.strip().startswith('#')}
         
-        # Filter all_class_names based on the requested list
+        # Filter all_class_names based on the requested list (if specified)
         class_names_to_use = [cls for cls in all_class_names if cls in requested_classes]
         missing_classes = requested_classes - set(class_names_to_use)
         if missing_classes:
@@ -123,8 +168,6 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
                         samples.append((str(img_path), label))
 
         # Create a dataset from the manually collected samples
-        # We use a base DatasetFolder and provide our own loader and sample list
-        # This ensures the labels are 100% consistent across all splits.
         dataset = datasets.DatasetFolder(
             root=str(phase_dir.parent), # Root is the base data dir
             loader=datasets.folder.default_loader, # Standard image loader
@@ -358,7 +401,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
-    # --- OVERALL METRICS ---
+    # OVERALL METRICS 
     accuracy = accuracy_score(all_labels, all_preds)
     precision_macro = precision_score(all_labels, all_preds, average='macro', zero_division=0)
     recall_macro = recall_score(all_labels, all_preds, average='macro', zero_division=0)
@@ -369,10 +412,10 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     print(f"Macro Recall: {recall_macro:.4f}")
     print(f"Macro F1-Score: {f1_macro:.4f}")
 
-    # --- NEW: ROBUST PER-CLASS METRICS CALCULATION AND SAVING ---
+    # Per-class metrics calculations and saving
     try:
         print("\nPer-Class Metrics:")
-        # Use classification_report, output_dict=True makes it easy to process
+        # Using classification_report, output_dict=True makes it easy to process
         report = classification_report(all_labels, all_preds, target_names=class_names, output_dict=True, zero_division=0)
         
         # Convert to a Pandas DataFrame for saving and display
@@ -408,7 +451,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
         print(f"   Error: {e}")
         print("   Skipping per-class report and plot, but continuing with confusion matrix...")
 
-    # --- CONFUSION MATRIX (existing code runs regardless of the above try...except) ---
+    # Confusion matrix
     cm = confusion_matrix(all_labels, all_preds)
     print("\nConfusion Matrix:")
     
@@ -438,8 +481,10 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
 # Main Execution Block
 if __name__ == '__main__':
     # Configuration
-    base_data_dir = "/scratch/rmkyas002/processed_crops" 
-    CLASS_LIST_FILE =  None
+    # Path to base data directory (processed crops)
+    base_data_dir = 'path/to/directory' 
+    # Path to class list file
+    CLASS_LIST_FILE =  None # None to include all classes ; <Class list file name> If specifying classes to include in training and testing
 
     script_location_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(script_location_dir, "training_outputs_parallel_fusion") 
@@ -493,7 +538,7 @@ if __name__ == '__main__':
     )
 
     # Setup Device & CUDA Diagnostics
-    print(f"\n--- Device Setup & CUDA Diagnostics ---")
+    print(f"\nDevice Setup & CUDA Diagnostics")
     print(f"Is CUDA available? {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         print(f"Current CUDA device index: {torch.cuda.current_device()}")
@@ -509,7 +554,7 @@ if __name__ == '__main__':
     print(f"Parallel Fusion Model loaded on device: {device}")
 
     # Unweighted loss function
-    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # For unweighted cross entropy loss
     # Calculate class weights for weighted loss function 
     print("\nCalculating class weights to handle imbalance...")
     class_counts = np.bincount(dataloaders['train'].dataset.targets)
@@ -520,7 +565,7 @@ if __name__ == '__main__':
     print(f"Class weights calculated and moved to {device}.")
 
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1) # For weighted cross entropy loss
 
     # Phase 1: Train the fusion classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning fusion classifier head ---")

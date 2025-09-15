@@ -1,3 +1,42 @@
+"""
+yolo_model.py
+
+Description:
+    Trains and evaluates a YOLOv8 object detection model for pollen grain 
+    detection using the `ultralytics` framework. 
+
+    This script provides a streamlined workflow:
+    1.  Initializes a pre-trained YOLOv8 model (e.g., 'yolov8s.pt').
+    2.  Trains the model on a custom dataset specified by a .yaml file.
+    3.  After training, it automatically identifies the best model checkpoint.
+    4.  Runs a final evaluation on the test set to compute and display key 
+        metrics like mAP, precision, and recall.
+
+    All configurations, including paths and hyperparameters, are set as global 
+    variables at the top of the script.
+
+Usage:
+    # For direct execution
+    python yolo_model.py
+
+    # For submitting the job to the Slurm workload manager
+    sbatch run_YOLO_model.sbatch
+
+Inputs:
+    - Dataset YAML file (set in script: DATASET_YAML_PATH): A .yaml file in 
+      the YOLO format that defines the paths to train/validation/test image 
+      sets and lists the class names.
+    - Output directory path (set in script: OUTPUT_PARENT_DIR)
+    - Pre-trained model choice (set in script: MODEL_CHOICE): The base YOLOv8 
+      model checkpoint to start training from (e.g., 'yolov8s.pt').
+
+Outputs:
+    - YOLO run directory (path set by OUTPUT_PATH and RUN_NAME): A comprehensive 
+      output folder created by the ultralytics library, containing:
+        - Model checkpoints in the 'weights/' subdirectory (including best.pt).
+        - Training and validation metrics plots (e.g., results.png, confusion_matrix.png).
+        - Logs, event files, and detailed validation results.
+"""
 
 import torch
 from ultralytics import YOLO
@@ -5,29 +44,18 @@ from pathlib import Path
 import os
 
 # Configuration
-
 # Path Definitions 
 
-# FOR LOCAL RUN
-# try:
-#     ROOT_DIR = Path(__file__).resolve().parent.parent
-# except NameError:
-#     # This fallback is for interactive environments like Jupyter notebooks
-#     ROOT_DIR = Path(os.getcwd())
+# Path to dataset YAML file
+DATASET_YAML_PATH = Path('path/to/yaml_file')
+# Path to output directory
+OUTPUT_PARENT_DIR = Path('path/to/output/directory') 
 
-# Path to the dataset configuration YAML file
-# DATASET_YAML_PATH = ROOT_DIR / "data/detection/pollen_detector/datasets/pollen/pollen.yaml"
-# OUTPUT_PATH = ROOT_DIR / "models" / "detection_outputs"
-
-# FOR HPC RUN
-DATASET_YAML_PATH = Path("/scratch/rmkyas002/yolo_detection_data/data.yaml")
-
-OUTPUT_PARENT_DIR = Path("/scratch/rmkyas002/yolo_outputs") 
 RUN_NAME = "yolov8_run1"
 OUTPUT_PATH = OUTPUT_PARENT_DIR / RUN_NAME
 
 # Model & Training Hyperparameters
-MODEL_CHOICE = 'yolov8m.pt'  # 'n' for nano, 's'/'m'/'l'/'x' for small/medium/large/extra-large
+MODEL_CHOICE = 'yolov8s.pt'  # Model type and size can be modified - e.g. yolo11 or yolov8 - 'n'/'s'/'m'/'l' for nano/small/medium/large
 EPOCHS = 100                 # Number of training epochs
 PATIENCE = 30
 IMAGE_SIZE = 640             # Target image size for training
@@ -38,7 +66,7 @@ def main():
     """
     Main function to run the YOLO training and evaluation pipeline.
     """
-    print("--- YOLO Pollen Detector Training ---")
+    print("YOLO Pollen Detector Training")
     
     # Setup and Pre-checks
     
@@ -58,7 +86,6 @@ def main():
     
     
     # MODEL TRAINING 
-    
     # Initialize a YOLO model from a pretrained checkpoint
     print(f" initializing model with '{MODEL_CHOICE}'...")
     model = YOLO(MODEL_CHOICE)
@@ -75,12 +102,6 @@ def main():
         project=str(OUTPUT_PATH),  # Sets the parent directory for output
         name=RUN_NAME,             # Sets the specific folder name for this run
         exist_ok=True              # Allows overwriting of a previous run with the same name
-
-    # STRONGER AUGMENTATION
-        # augment=True,      # Master switch to enable advanced augmentation (RandAugment)
-        # mixup=0.1,         # Blends two images and their labels. 0.1 means it's applied to 10% of batches.
-        # copy_paste=0.1,    # Pastes objects from one image onto another. Applied to 10% of batches.
-        # flipud=0.5  
     )
     print("Training complete.")
 

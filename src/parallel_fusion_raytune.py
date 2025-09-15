@@ -1,3 +1,47 @@
+"""
+parallel_fusion_raytune.py
+
+Description:
+    Performs hyperparameter optimization for the parallel fusion (ConvNeXt + 
+    Swin Transformer) model using the Ray Tune library. 
+
+    Instead of training with a single set of predefined hyperparameters, this 
+    script searches a defined 'search space' for the optimal combination of 
+    learning rates and dropout rates. It leverages the ASHA (Asynchronous 
+    Successive Halving Algorithm) scheduler to efficiently prune underperforming 
+    trials, saving significant computation time.
+
+    Each individual trial within the search still follows the two-phase 
+    training logic (head-only training followed by full model fine-tuning). 
+    After the search is complete, the script identifies the best trial, 
+    loads its model checkpoint, and performs a final evaluation on the test set.
+
+Usage:
+    # For direct execution (e.g., on a local machine or for testing)
+    python parallel_fusion_raytune.py
+
+    # For submitting the job to the Slurm workload manager
+    sbatch run_parallel_ray.sbatch
+
+Inputs:
+    - Dataset directory (set in script: base_data_dir): Must be structured 
+      with 'train', 'val', and 'test' subdirectories.
+    - Optional class list file (set in script: CLASS_LIST_FILE): A .txt file 
+      to specify a subset of classes.
+    - Hyperparameter search space (defined in script: search_space): A 
+      dictionary that specifies the ranges for hyperparameters (e.g., 
+      learning rates, dropout) to be explored by Ray Tune.
+
+Outputs:
+    - Ray Tune results directory (path set in script: output_dir): This is 
+      the main output, containing a subdirectory for each hyperparameter 
+      trial. Each trial folder includes its configuration, detailed logs, 
+      and saved model checkpoints.
+    - Final evaluation reports (for the single best model found):
+        - A confusion matrix plot saved to the root of the output directory.
+        - A summary of the best trial and its performance printed to the console.
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -412,10 +456,16 @@ def train_model_for_tune(config, data_ref=None):
 # Main Execution Block
 if __name__ == '__main__':
     # Configuration 
-    base_data_dir = "/scratch/rmkyas002/processed_crops" 
-    CLASS_LIST_FILE = None #'classes_to_include.txt' 
+    # Path to base data directory
+    base_data_dir = 'path/to/directory'
+    # Path to class list file
+    CLASS_LIST_FILE = None # None to include all classes ; <Class list file name> If specifying classes to include in training and testing
+    
     script_location_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = "/scratch/rmkyas002/ray_tune_outputs_parallel_fusion"
+    
+    # Path to output directory
+    output_dir = 'path/to/directory'
+    
     os.makedirs(output_dir, exist_ok=True)
     print(f"Checkpoints and plots will be saved in: {output_dir}")
 

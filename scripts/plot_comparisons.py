@@ -1,3 +1,23 @@
+"""
+plot_comparisons.py
+
+Description:
+    Plots comparisons between expert and model honey classifications 
+
+Usage:
+    python plot_comparisons.py
+
+Inputs:
+    - Full pipeline outputs folder (set in script: sample_dir)
+    - Extracted expert compositions CSV file (set in script: expert_path)
+    - Plots output directory path (set in script: plots_dir)
+    - Top-5 taxa output directory path (set in script: text_output_dir)
+    
+Outputs:
+    - Histograms comparing model to expert compositions for each honey
+    - Top 5 taxon comparisons for each honey
+"""
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,18 +32,21 @@ def normalize_taxon(taxon):
     taxon = re.sub(r"_+", "_", taxon)
     return taxon.strip('_')
 
-# Path definitions 
-base_dir = '/home/yash/POL-ID/outputs/'
-run_folder = 'FINAL_77_WEIGHTED_0,1' 
+# Configuration
 
-sample_dir = os.path.join(base_dir, 'full_pipeline_outputs', run_folder)
-expert_path = os.path.join(base_dir, 'expert_compositions.csv')
-plots_dir = os.path.join(base_dir, 'plots', run_folder)
+# Path to directory containing full pipeline outputs
+sample_dir = 'path/to/directory'
+
+# Path to CSV file containing expert compositions (this can be created from an Excel file using extract_expert_compostions.py)
+expert_path = 'path/to/file'
+
+# Path to output directory where plots will be saved
+plots_dir = 'path/to/directory'
+
 os.makedirs(plots_dir, exist_ok=True)
 
-
-# Create a directory to store the text file comparisons
-text_output_dir = os.path.join(base_dir, 'top5_comparisons', run_folder)
+# Path to directory to store the text file comparisons of top-5 taxa
+text_output_dir = 'path/to/directory'
 os.makedirs(text_output_dir, exist_ok=True)
 
 

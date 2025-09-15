@@ -1,3 +1,30 @@
+"""
+full_pipeline_detr.py
+
+Description:
+    End-to-end pipeline for pollen grain analysis from slide images. 
+    The script detects pollen grains using a DETR detector, classifies them 
+    with a parallel fusion model (ConvNeXt + Swin Transformer), clusters 
+    low-confidence samples with HDBSCAN + UMAP, and generates reports.
+
+Usage:
+    python full_pipeline_detr.py <slides_directory>
+
+Inputs:
+    - slides_directory (command-line argument: path to classification images)
+    - DETR model checkpoint (set in script: DETR_MODEL_PATH)
+    - Classifier model checkpoint (set in script: CLASSIFIER_MODEL_PATH)
+    - Base output directory (set in script: base_output_dir)
+
+Outputs:
+    - Cropped pollen grain images (per sample)
+    - Cluster exemplar images (for low-confidence samples)
+    - UMAP visualization plot (if clustering is performed)
+    - Composition CSV file for each sample
+    - Master clustering metrics CSV (aggregated across runs)
+    - Log file capturing stdout for each run
+"""
+
 import os
 import torch
 import cv2
@@ -18,21 +45,22 @@ import sys
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 from rfdetr import RFDETRSmall
 
-
-
-
 # Configuration  
 IMG_SIZE = 224  
-DETR_MODEL_PATH = "/scratch/rmkyas002/checkpoint_best_total.pth" 
-CLASSIFIER_MODEL_PATH = "/scratch/rmkyas002/pollen_parallel_fusion_final_full.pth"
+# Path to DETR model weights
+DETR_MODEL_PATH = 'path/to/detr_model' 
+# Path to classifier weights
+CLASSIFIER_MODEL_PATH = 'path/to/classifier_model'
+# Path to directory containing honey sample slides
 SLIDES_DIR = sys.argv[1]
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Get folder name (e.g. "HS095") from input path
 input_name = os.path.basename(os.path.normpath(SLIDES_DIR))
 
-# Define output path
-base_output_dir = "/scratch/rmkyas002/full_pipeline_outputs/"
+# Path to base output directory
+base_output_dir = 'path/to/directory'
 output_dir = os.path.join(base_output_dir, input_name)
 os.makedirs(output_dir, exist_ok=True)
 

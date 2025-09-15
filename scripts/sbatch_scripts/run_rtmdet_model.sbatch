@@ -1,8 +1,5 @@
 #!/bin/bash
 
-#==============================================================================
-# SBATCH DIRECTIVES 
-#==============================================================================
 #SBATCH --account=l40sfree
 #SBATCH --partition=l40s
 #SBATCH --job-name="MMDet-Pollen-Train" 
@@ -16,33 +13,31 @@
 #SBATCH --error=mmdet_pollen_train_%j.err
 
 # Environment Setup
-
-echo "------------------------------------------------------------------------"
 echo "Job started on $(hostname) at $(date)"
 echo "Current working directory is $(pwd)"
 echo "SLURM Job ID: $SLURM_JOB_ID"
 echo "SLURM Job Name: $SLURM_JOB_NAME"
 echo "SLURM Node List: $SLURM_JOB_NODELIST"
 echo "Allocated GPU(s): $CUDA_VISIBLE_DEVICES"
-echo "------------------------------------------------------------------------"
+
 
 # Load necessary modules from the HPC
 echo "Loading modules..."
 module purge
 module load python/miniconda3-py3.9
 echo "Modules loaded."
-echo "------------------------------------------------------------------------"
+
 
 # Activate Conda environment for MMDetection
 echo "Activating Conda environment: mmdetection_env"
-source activate mmdetection_env # <-- CHANGED from pollen_detection_env
+source activate mmdetection_env 
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate Conda environment 'mmdetection_env'."
     exit 1
 fi
 echo "Conda environment activated. Current Conda env: $CONDA_DEFAULT_ENV"
 echo "Python path: $(which python)"
-echo "------------------------------------------------------------------------"
+
 
 
 # MMDetection training is typically run from the root of the mmdetection repo.
@@ -55,7 +50,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 echo "Current directory after cd: $(pwd)"
-echo "------------------------------------------------------------------------"
+
 
 
 CONFIG_FILE=~/pol_id/detection/configs/rtmdet.py
@@ -70,7 +65,7 @@ fi
 echo "Starting MMDetection training..."
 echo "Using config file: $CONFIG_FILE"
 echo "Start time: $(date)"
-echo "------------------------------------------------------------------------"
+
 
 # The command to start training using MMDetection's tools
 python mmdetection/tools/train.py $CONFIG_FILE 
@@ -82,7 +77,6 @@ if [ $EXIT_STATUS -eq 0 ]; then
 else
     echo "ERROR: MMDetection training script exited with status $EXIT_STATUS."
 fi
-echo "------------------------------------------------------------------------"
+
 echo "End time: $(date)"
 echo "Job finished."
-echo "------------------------------------------------------------------------"

@@ -1,20 +1,77 @@
+"""
+crop_pollen.py
+
+Description:
+    Prepares the final pollen classification dataset from raw, annotated images.
+    This script processes a directory of taxon-specific folders, crops individual
+    pollen grains based on COCO-style JSON annotations, performs data cleaning,
+    and splits the resulting crops into training, validation, and test sets.
+
+    Its primary function is to ensure a clean, well-structured dataset ready
+    for input into a deep learning model, while preventing data leakage from
+    image stacks.
+
+Key Functionalities:
+    - Stack-Level Splitting: To prevent data leakage where different focal
+      planes of the same pollen grain end up in both training and test sets,
+      the script groups images into "stacks." A stack is defined as a sequence
+      of images of the same grain. It identifies the end of a stack by looking
+      for a filename containing "_box". The train/validation/test split is
+      performed on these stacks, not on individual images or crops.
+    - Taxon Normalization and Merging: Cleans up class names by removing "Supp_"
+      prefixes and allows for the merging of similar or identical taxa using
+      the `TAXON_MERGE_MAP` dictionary.
+    - Data Summarization: Generates comprehensive CSV reports and a bar chart
+      visualizing the number of stacks and crops per taxon, providing insight
+      into the dataset's composition.
+
+Usage:
+    python crop_pollen.py
+
+Inputs:
+    - A base directory (`BASE_DIR`) containing subdirectories for each pollen
+      taxon. Each taxon subdirectory must contain:
+        1. The source images (.jpg, .png, etc.).
+        2. A corresponding `instances_default.json` file with annotations
+           in COCO format.
+    - Path where the final structured dataset will be saved (set in script: OUTPUT_DIR)
+    - The train, validation, and test split ratios (set in script: SPLIT_RATIOS)
+    - A dictionary for consolidating class labels (set in script: TAXON_MERGE_MAP)
+
+Outputs:
+    - A new directory (`OUTPUT_DIR`) structured for model training. It contains
+      `train/`, `val/`, and `test/` subdirectories, which in turn contain
+      folders for each final taxon holding the cropped pollen grain images.
+    - Summary reports saved in the `OUTPUT_DIR`:
+        - `comprehensive_taxon_summary.csv`: Details counts of original images,
+          stacks, and final crops for each taxon.
+        - `taxon_stack_counts.csv`: A simple list of stack counts per taxon.
+        - `taxon_stack_counts.png`: A bar plot visualizing the stack counts.
+"""
+
 import os
 import json
 import random
 from PIL import Image
-from sklearn.model_selection import train_test_split # For stratified splitting
-import shutil # For cleaning up output directory
+from sklearn.model_selection import train_test_split
+import shutil 
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-import re # Added for normalization
-from collections import defaultdict # Added for easier counting
+import re 
+from collections import defaultdict
 
-# CONFIGURATION
-script_directory = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = os.path.normpath(os.path.join(script_directory, "..", "data", "classification"))
-OUTPUT_DIR = os.path.join(BASE_DIR, "processed_crops")
+# Configuration
+
+# Path to classification images directory (in per-taxon folders containing images and label files)
+BASE_DIR = 'path/to/directory'
+
+# Path to directory where processed grain crops will be saved
+OUTPUT_DIR = 'path/to/directory'
+
+# Dataset split ratios 
 SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
+
 SEED = 42 # For reproducible splits
 
 # Map for merging taxa.
@@ -39,11 +96,11 @@ def normalize_taxon_name(name):
 def group_stacks(image_files):
     """
     Groups image filenames into stacks. A stack ends when a filename contains "box".
-    Assumes image_files are from a single taxon and sorted if specific order within stack matters before this.
+    Assumes image_files are from a single taxon.
     """
     stacks = []
     current_stack = []
-    # Sort files to ensure consistent stack grouping if not already sorted
+    # Sort files to ensure consistent stack grouping 
     sorted_image_files = sorted(image_files)
 
     for fname in sorted_image_files:
@@ -91,11 +148,12 @@ def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name
             label_id = ann["category_id"]
             raw_label_name = id_to_category_map.get(label_id, f"unknown_category_{label_id}")
 
-            # MODIFIED: Normalize the label from the JSON file to handle "Supp" prefixes
+            # Normalize label from JSON file to handle "Supp" prefixes
             normalized_label_name = normalize_taxon_name(raw_label_name)
 
-            # Apply the taxon merge map to the *normalized* name
+            # Apply the taxon merge map to the normalized name
             final_label_name = taxon_merge_map.get(normalized_label_name, normalized_label_name)
+            
             label_name_slug = slugify(final_label_name)
 
             label_dir = os.path.join(output_base_dir, label_name_slug)
@@ -110,6 +168,7 @@ def crop_and_save(image_path, annotations_for_image, output_base_dir, image_name
 
     return crops_saved_count
 
+# Helper functions to save and plot stack counts 
 def write_stack_counts_to_csv(stack_counts, output_dir):
     """Writes the taxon stack counts to a CSV file."""
     output_path = os.path.join(output_dir, "taxon_stack_counts.csv")
@@ -141,7 +200,7 @@ def plot_stack_counts(stack_counts, output_dir):
 def write_comprehensive_summary(taxon_stats, output_dir):
     """Writes a comprehensive summary of counts to the console and a CSV file."""
     output_path = os.path.join(output_dir, "comprehensive_taxon_summary.csv")
-    print("\n--- Comprehensive Taxon Summary ---")
+    print("\nComprehensive Taxon Summary")
     print(f"Writing summary to {output_path}...")
 
     header = ['Taxon', 'Original Images', 'Stacks', 'Total Cropped Grains']
@@ -176,8 +235,7 @@ def main():
     for split_name in SPLIT_RATIOS.keys():
         os.makedirs(os.path.join(OUTPUT_DIR, split_name), exist_ok=True)
     print(f"Created output directory structure in: {OUTPUT_DIR}")
-
-    # MODIFIED: Use defaultdict for easier aggregation and add a comprehensive stats tracker
+    
     taxon_to_stacks = defaultdict(list)
     taxon_stats = defaultdict(lambda: {'original_image_count': 0, 'stack_count': 0, 'cropped_grain_count': 0})
 
@@ -187,10 +245,10 @@ def main():
         if taxon_folder_name == os.path.basename(OUTPUT_DIR) or not os.path.isdir(taxon_base_path):
             continue
 
-        # MODIFIED: Normalize the folder name to handle "Supp_" prefixes
+        # Normalize the folder name to handle "Supp_" prefixes
         normalized_folder_name = normalize_taxon_name(taxon_folder_name)
 
-        # Apply the merge map to the *normalized* name
+        # Apply the merge map to the normalized name
         effective_taxon_name = TAXON_MERGE_MAP.get(normalized_folder_name, normalized_folder_name)
         final_slug = slugify(effective_taxon_name)
         
@@ -202,25 +260,25 @@ def main():
         image_files_in_taxon = [f for f in os.listdir(taxon_base_path) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
         annotation_file_path = os.path.join(taxon_base_path, "instances_default.json")
         
-        # NEW: Track original image count
+        # Track original image count
         taxon_stats[final_slug]['original_image_count'] += len(image_files_in_taxon)
 
         if not image_files_in_taxon:
-            print(f"    No image files found in {taxon_folder_name}, skipping.")
+            print(f"No image files found in {taxon_folder_name}, skipping.")
             continue
         if not os.path.exists(annotation_file_path):
-            print(f"    Annotation file 'instances_default.json' not found in {taxon_folder_name}, skipping.")
+            print(f"Annotation file 'instances_default.json' not found in {taxon_folder_name}, skipping.")
             continue
 
         stacks_from_taxon = group_stacks(image_files_in_taxon)
-        # NEW: Track stack count
+        # Track stack count
         taxon_stats[final_slug]['stack_count'] += len(stacks_from_taxon)
 
         if not stacks_from_taxon:
-            print(f"    No stacks formed for taxon {taxon_folder_name}, skipping.")
+            print(f"No stacks formed for taxon {taxon_folder_name}, skipping.")
             continue
 
-        print(f"    Found {len(stacks_from_taxon)} stacks for taxon {taxon_folder_name}.")
+        print(f"Found {len(stacks_from_taxon)} stacks for taxon {taxon_folder_name}.")
 
         for stack in stacks_from_taxon:
             taxon_to_stacks[final_slug].append({
@@ -267,7 +325,7 @@ def main():
     def count_taxa_in_split(stacks_list):
         return set(stack['taxon_name'] for stack in stacks_list)
 
-    print("\n--- Taxon Coverage per Split ---")
+    print("\nTaxon Coverage per Split")
     print(f"Train: {len(count_taxa_in_split(train_stacks))} taxa")
     print(f"Val:   {len(count_taxa_in_split(val_stacks))} taxa")
     print(f"Test:  {len(count_taxa_in_split(test_stacks))} taxa")
@@ -309,22 +367,20 @@ def main():
 
                 image_full_path = os.path.join(stack_info['taxon_base_path'], image_filename_in_stack)
                 
-                # MODIFIED: Capture the returned crop count
+                # Capture the returned crop count
                 num_cropped = crop_and_save(image_full_path, annotations_for_current_image,
                                              output_subdir_for_split, image_filename_in_stack,
                                              id_to_category_map, TAXON_MERGE_MAP)
                 
-                # NEW: Add to our stats tracker
                 final_slug = stack_info['taxon_name']
                 taxon_stats[final_slug]['cropped_grain_count'] += num_cropped
 
     print("\nCropping and splitting process complete.")
-    # NEW: Call the new summary function
     write_comprehensive_summary(taxon_stats, OUTPUT_DIR)
     print_dataset_summary(OUTPUT_DIR)
 
 def print_dataset_summary(output_dir):
-    print("\n--- Dataset Summary (Cropped Images per Split) ---")
+    print("\nDataset Summary (Cropped Images per Split)")
     for split in ['train', 'val', 'test']:
         split_path = os.path.join(output_dir, split)
         print(f"\nSplit: {split}")
@@ -351,12 +407,12 @@ if __name__ == "__main__":
     try:
         from sklearn.model_selection import train_test_split
     except ImportError:
-        print("Error: scikit-learn is required. Please install it (pip install scikit-learn).")
+        print("Error: scikit-learn is required.")
         exit()
     try:
         import matplotlib
     except ImportError:
-        print("Error: matplotlib is required. Please install it (pip install matplotlib).")
+        print("Error: matplotlib is required.")
         exit()
 
     if not np.isclose(sum(SPLIT_RATIOS.values()), 1.0):

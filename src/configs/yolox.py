@@ -1,7 +1,28 @@
+"""
+yolox.py
+
+Description:
+    MMDetection configuration file for training the YOLOX model.
+
+Usage:
+    python tools/train.py yolox.py
+    # or using OpenMIM:
+    mim train mmdet yolox.py
+
+Inputs:
+    - Classification image directory (defined in dataset config)
+    - Model and training hyperparameters (defined here)
+
+Outputs:
+    - Model checkpoints in work_dirs/
+    - Training logs in work_dirs/
+"""
+
+
 # Model Configuration
 _base_ = '/home/rmkyas002/pol_id/detection/mmdetection/configs/yolox/yolox_s_8xb8-300e_coco.py'
 
-# Dataset
+# Dataset Configuration
 data_root = '/scratch/rmkyas002/mmdetection_data/'
 class_name = ('pollen',)
 metainfo = dict(classes=class_name)
@@ -9,7 +30,7 @@ metainfo = dict(classes=class_name)
 # Image Size
 img_scale = (640, 640)
 
-# 3. Pipeline Definitions 
+# Pipeline Definitions 
 train_pipeline = [
     # The 'LoadImageFromFile' transform is required before Mosaic/MixUp
     dict(type='LoadImageFromFile'),
@@ -59,10 +80,9 @@ train_dataloader = dict(
             pipeline=[
                 dict(type='LoadImageFromFile'),
                 dict(type='LoadAnnotations', with_bbox=True)
-                # (No MixUp or Mosaic here!)
             ]
         ),
-        pipeline=[  # mix transforms go here!
+        pipeline=[  
             dict(type='Mosaic', img_scale=(640, 640), pad_val=114.0),
             dict(
                 type='RandomAffine',
@@ -153,7 +173,7 @@ param_scheduler = [
         end=300, # Should match max_epochs
     )
 ]
-# CUSTOM HOOK TO DISABLE AUGMENTATIONS in last 15 epochs
+# Custom hook to disable augmentations in last 15 epochs
 custom_hooks = [
     dict(
         type='YOLOXModeSwitchHook',

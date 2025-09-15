@@ -1,5 +1,4 @@
 # Environment for YOLO-based pollen grain detection
-
 name: yolo_detection_env
 channels:
   - pytorch
@@ -7,7 +6,6 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  # Core dependencies installed by Conda 
   - python=3.9
   - pip
   - pytorch
@@ -23,8 +21,6 @@ dependencies:
   - pandas
   - scikit-learn
   - timm
-
-  # High-level libraries and OpenCV installed by Pip 
-  # - pip:
-  #   - ultralytics
-  #   - opencv-python
+  - pip:
+    - ultralytics
+    - opencv-python

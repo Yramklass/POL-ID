@@ -1,8 +1,29 @@
+"""
+rtmdet.py
+
+Description:
+    MMDetection configuration file for training the RTMDet model.
+
+Usage:
+    python tools/train.py rtmdet.py
+    # or using OpenMIM:
+    mim train mmdet rtmdet.py
+
+Inputs:
+    - Classification image directory (defined in dataset config)
+    - Model and training hyperparameters (defined here)
+
+Outputs:
+    - Model checkpoints in work_dirs/
+    - Training logs in work_dirs/
+"""
+
+
 # Inherit from the base RTMDet-tiny config
 _base_ = '/home/rmkyas002/pol_id/detection/mmdetection/configs/rtmdet/rtmdet_s_8xb32-300e_coco.py'
 
 
-# DATASET & EVALUATION CONFIGURATION 
+# Dataset Configuration
 data_root = '/scratch/rmkyas002/mmdetection_data/' 
 
 
@@ -85,10 +106,10 @@ test_evaluator = dict(
 )
 
 
-# MODEL CONFIGURATION 
+# Model Configuration
 model = dict(bbox_head=dict(num_classes=num_classes))
 
-# TRAINING SCHEDULE & RUNTIME CONFIGURATION 
+# Training Schedule and Runtime Configuration
 max_epochs = 100
 train_cfg = dict(max_epochs=max_epochs, val_interval=5)
 

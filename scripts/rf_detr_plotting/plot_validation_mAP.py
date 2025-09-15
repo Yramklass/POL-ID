@@ -1,8 +1,24 @@
+"""
+plot_training_loss.py
+
+Description:
+    Plots RFDETR validation mAP graph
+
+Usage:
+    python plot_training_loss.py
+
+Inputs:
+    - RFDETR results file path (set in script)
+
+Outputs:
+    - Validation mAP graph for RFDETR model
+"""
+
 import json
 import matplotlib.pyplot as plt
 
-
-results_file = '/home/yash/POL-ID/models/rf-detr/run_1/results.json' 
+# Path to RF-DETR training results file (e.g. results.json)
+results_file = "path/to/file" 
 
 # Load the JSON data
 with open(results_file, 'r') as f:

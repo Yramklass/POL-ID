@@ -5,7 +5,7 @@
 #SBATCH --mail-user=rmkyas002@myuct.ac.za
 #SBATCH --mail-type=BEGIN,END,FAIL 
                                      
-# Resource Allocation - Request more resources for Ray Tune
+# Resource Allocation 
 #SBATCH --account=l40sfree 
 #SBATCH --partition=l40s 
 #SBATCH --nodes=1 --ntasks=1 --gres=gpu:l40s:1 
@@ -16,7 +16,6 @@
 #SBATCH --error=raytune_hpo_error_%j.err
 
 # Environment Setup
-echo "------------------------------------------------------------------------"
 echo "Job started on $(hostname) at $(date)"
 echo "Current working directory is $(pwd)"
 echo "SLURM Job ID: $SLURM_JOB_ID"
@@ -26,7 +25,6 @@ echo "SLURM Tasks per Node: $SLURM_NTASKS_PER_NODE"
 echo "SLURM CPUs per Task: $SLURM_CPUS_PER_TASK" 
 echo "Allocated GPU(s): $CUDA_VISIBLE_DEVICES"
 echo "Allocated Memory: $SLURM_MEM_PER_NODE MB"
-echo "------------------------------------------------------------------------"
 
 # Load necessary modules
 echo "Loading modules..."
@@ -34,13 +32,7 @@ module purge
 module load python/miniconda3-py3.9 
 echo "Modules loaded."
 
-echo "------------------------------------------------------------------------"
-echo "Python version:"
-python --version
-echo "Conda prefix: $CONDA_PREFIX"
-echo "------------------------------------------------------------------------"
-
-# Activate custom Conda environment
+# Activate Conda environment
 echo "Activating Conda environment: pollen_classification_env"
 source activate pollen_classification_env
 if [ $? -ne 0 ]; then
@@ -49,21 +41,21 @@ if [ $? -ne 0 ]; then
 fi
 echo "Conda environment activated. Current Conda env: $CONDA_DEFAULT_ENV"
 echo "Python path: $(which python)"
-echo "------------------------------------------------------------------------"
+
 
 # Set Ray environment variables for HPC
 export RAY_DISABLE_IMPORT_WARNING=1
 export RAY_DEDUP_LOGS=0
 export TUNE_DISABLE_AUTO_CALLBACK_LOGGERS=1  # Reduce logging overhead
 
-# Set temporary directory for Ray (important on HPC systems)
+# Set temporary directory for Ray 
 export RAY_TMPDIR=$SLURM_TMPDIR
 if [ -z "$RAY_TMPDIR" ]; then
     export RAY_TMPDIR=/tmp/ray_$SLURM_JOB_ID
     mkdir -p $RAY_TMPDIR
 fi
 echo "Ray temporary directory: $RAY_TMPDIR"
-echo "------------------------------------------------------------------------"
+
 
 # Navigate to Script Directory
 TARGET_DIR=~/pol_id/classification/src/parallel_fusion
@@ -74,19 +66,18 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 echo "Current directory after cd: $(pwd)"
-echo "------------------------------------------------------------------------"
+
 
 # Create results directory
 RESULTS_DIR="./ray_results"
 mkdir -p $RESULTS_DIR
 echo "Results will be saved to: $RESULTS_DIR"
-echo "------------------------------------------------------------------------"
+
 
 # Running Ray Tune Hyperparameter Optimization
-PYTHON_SCRIPT="parallel_fusion_raytune.py"  # Your new Ray Tune script
+PYTHON_SCRIPT="parallel_fusion_raytune.py"  
 echo "Running Ray Tune hyperparameter optimization: $PYTHON_SCRIPT"
 echo "Start time: $(date)"
-echo "------------------------------------------------------------------------"
 
 # Set CUDA memory management for better GPU utilization
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
@@ -99,15 +90,13 @@ if [ $EXIT_STATUS -eq 0 ]; then
     echo "Ray Tune hyperparameter optimization completed successfully."
     
     # Show best results
-    echo "------------------------------------------------------------------------"
+    
     echo "BEST HYPERPARAMETERS FOUND:"
     if [ -f "best_hyperparameters.txt" ]; then
         cat best_hyperparameters.txt
     fi
-    echo "------------------------------------------------------------------------"
     
     # Compress results for easy transfer
-    echo "Compressing results..."
     tar -czf ray_results_${SLURM_JOB_ID}.tar.gz $RESULTS_DIR
     echo "Results compressed to: ray_results_${SLURM_JOB_ID}.tar.gz"
     
@@ -121,7 +110,6 @@ if [ ! -z "$RAY_TMPDIR" ] && [ -d "$RAY_TMPDIR" ]; then
     rm -rf $RAY_TMPDIR
 fi
 
-echo "------------------------------------------------------------------------"
+
 echo "End time: $(date)"
 echo "Job finished."
-echo "------------------------------------------------------------------------"

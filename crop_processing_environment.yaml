@@ -1,0 +1,12 @@
+# Environment for pollen grain cropping / preprocessing
+name: process_crops_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - scikit-learn
+  - pillow
+  - matplotlib

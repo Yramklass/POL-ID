@@ -1,3 +1,45 @@
+"""
+sequential_fusion_model.py
+
+Description:
+    Trains a CoAtNet (Convolution+Attention Network) deep learning model for 
+    image classification. The model, a hybrid of CNNs and Transformers, is 
+    loaded from the `timm` library. 
+
+    The script utilizes a two-phase training strategy for effective transfer 
+    learning:
+    1.  Feature Extraction: The pre-trained backbone is frozen, and only the 
+        final classification head is trained on the new dataset.
+    2.  Fine-Tuning: The entire model is unfrozen and trained end-to-end, 
+        using differential learning rates (a smaller rate for the backbone 
+        and a larger one for the head).
+
+    Finally, the script evaluates the best-performing model on the test set 
+    and generates detailed performance reports and visualizations.
+
+Usage:
+    # For direct execution (e.g., on a local machine or for testing)
+    python sequential_fusion_model.py
+
+    # For submitting the job to the Slurm workload manager
+    sbatch run_sequential_fusion_model.sbatch
+
+Inputs:
+    - Dataset directory (set in script: base_data_dir): Must be structured 
+      with 'train', 'val', and 'test' subdirectories, each containing 
+      class-specific folders of images.
+
+Outputs:
+    (All files are saved to the 'training_outputs' directory)
+    - Phase 1 best model checkpoint (pollen_coatnet_phase1_head_best.pth)
+    - Phase 2 best model checkpoint (pollen_coatnet_phase2_full_best.pth)
+    - Training/validation curve plots for Phase 1 and Phase 2
+    - Final evaluation reports on the test set:
+        - Per-class metrics table (per_class_metrics.csv)
+        - Per-class F1-score bar plot (per_class_f1_scores.png)
+        - Confusion matrix plot (confusion_matrix_test.png)
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -257,7 +299,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     all_preds = np.array(all_preds)
     all_labels = np.array(all_labels)
 
-    # --- OVERALL METRICS ---
+    # Overall Metrics
     accuracy = accuracy_score(all_labels, all_preds)
     precision_macro = precision_score(all_labels, all_preds, average='macro', zero_division=0)
     recall_macro = recall_score(all_labels, all_preds, average='macro', zero_division=0)
@@ -268,7 +310,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
     print(f"Macro Recall: {recall_macro:.4f}")
     print(f"Macro F1-Score: {f1_macro:.4f}")
 
-    # --- NEW: ROBUST PER-CLASS METRICS CALCULATION AND SAVING ---
+    # Per-class metrics calculations and saving
     try:
         print("\nPer-Class Metrics:")
         # Use classification_report, output_dict=True makes it easy to process
@@ -307,7 +349,7 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
         print(f"   Error: {e}")
         print("   Skipping per-class report and plot, but continuing with confusion matrix...")
 
-    # --- CONFUSION MATRIX (existing code runs regardless of the above try...except) ---
+    # Plot Confusion Matrix
     cm = confusion_matrix(all_labels, all_preds)
     print("\nConfusion Matrix:")
     
@@ -337,7 +379,8 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
 # Main Execution Block 
 if __name__ == '__main__':
     # Configuration 
-    base_data_dir = "/scratch/rmkyas002/processed_crops" 
+    # Path to base data directory 
+    base_data_dir = 'path/to/directory' 
     
     if not os.path.isdir(base_data_dir):
         print(f"ERROR: HPC Data directory not found at '{base_data_dir}'")
@@ -349,7 +392,7 @@ if __name__ == '__main__':
     print(f"Checkpoints and plots will be saved in: {output_dir}")
 
 
-    MODEL_NAME = 'coatnet_rmlp_1_rw2_224.sw_in12k_ft_in1k' # Imagenet 12k version
+    MODEL_NAME = 'coatnet_rmlp_1_rw2_224.sw_in12k_ft_in1k' # Imagenet 12k version 
     BATCH_SIZE = 16 
     NUM_WORKERS = 1 
     print(f"Using NUM_WORKERS = {NUM_WORKERS} for DataLoaders.")
@@ -387,7 +430,6 @@ if __name__ == '__main__':
         for i in range(torch.cuda.device_count()):
              print(f"Device {i} name: {torch.cuda.get_device_name(i)}")
         print(f"PyTorch CUDA version: {torch.version.cuda}")
-        # print(f"CUDNN version: {torch.backends.cudnn.version()}") # Requires cudnn to be visible
     else:
         print("CUDA is NOT available. PyTorch will use CPU.")
     
@@ -395,7 +437,7 @@ if __name__ == '__main__':
     pollen_model.to(device)
     print(f"Model '{MODEL_NAME}' loaded on device: {device}")
 
-    # Unweighted loss function
+    # # Unweighted cross entropy loss function
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     
     # Calculate class weights for weighted loss function 
@@ -407,8 +449,9 @@ if __name__ == '__main__':
 
     # print(f"Class weights calculated and moved to {device}.")
 
-
+    # # Weighted cross entropy loss function
     # criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+    
     # PHASE 1: Train the classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning classifier head ---")
     print(f"Epochs: {EPOCHS_PHASE1}, LR: {LR_PHASE1}")

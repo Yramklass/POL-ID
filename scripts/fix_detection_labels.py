@@ -1,18 +1,22 @@
-# /scripts/fix_labels.py
+"""
+fix_detection_labels.py
+
+Description:
+    Fixes detection dataset labels ('pollen' labels were not all set to 0)
+
+Usage:
+    fix_detection_labels.py
+
+Inputs:
+    - Path to directory containing detection dataset label files (set in script: LABELS_BASE_DIR)
+"""
+
 from pathlib import Path
 import os
 
 # Configuration
-try:
-    # Assumes this script is in 'scripts/', so its parent's parent is the project root
-    ROOT_DIR = Path(__file__).resolve().parent.parent
-except NameError:
-    # Fallback for interactive environments
-    ROOT_DIR = Path(os.getcwd())
-
 # Path to the directory containing 'train', 'val', 'test' label folders
-LABELS_BASE_DIR = ROOT_DIR / "data/detection/pollen_detector/datasets/pollen/labels"
-
+LABELS_BASE_DIR = 'path/to/directory'
 
 def fix_label_files(labels_dir):
     """

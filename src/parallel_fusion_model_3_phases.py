@@ -1,3 +1,51 @@
+"""
+parallel_fusion_model_3_phase.py
+
+Description:
+    Trains a deep learning model for image classification using a parallel 
+    fusion architecture. This script combines features from a ConvNeXt and a 
+    Swin Transformer backbone, concatenates them, and feeds them into a final 
+    classifier head. 
+
+    The training process is structured in three phases:
+    1.  Feature Extraction: Only the final fusion classifier head is trained 
+        while the pre-trained backbones remain frozen.
+    2. Later layer training: Later layers in the backbones are unfrozen and trained along 
+        with the classifier head. 
+    3.  Fine-Tuning: The entire model (full backbones and the head) is 
+        unfrozen and trained end-to-end with differential learning rates.
+
+    The script handles data loading with augmentations, model creation, 
+    the two-phase training loop, and a comprehensive final evaluation on 
+    the test set.
+
+Usage:
+    # For direct execution (e.g., on a local machine or for testing)
+    python parallel_fusion_model_3_phase.py
+
+    # For submitting the job to the Slurm workload manager
+    sbatch run_parallel_fusion_model.sbatch (with the 3-phase training script specified)
+
+Inputs:
+    - Dataset directory (set in script: base_data_dir): Must be structured 
+      with 'train', 'val', and 'test' subdirectories, each containing 
+      class-specific folders of images.
+    - Optional class list file (set in script: CLASS_LIST_FILE): A .txt file 
+      listing specific classes to include in training and evaluation.
+
+Outputs:
+    (All files are saved to the 'training_outputs_parallel_fusion' directory)
+    - Phase 1 best model checkpoint (pollen_parallel_fusion_phase1_head_best.pth)
+    - Phase 2 best model checkpoint (pollen_parallel_fusion_phase2_full_best.pth)
+    - Phase 3 best model checkpoint (pollen_parallel_fusion_phase3_full_best.pth)
+    - Final complete model with class names embedded (pollen_parallel_fusion_final_full.pth)
+    - Training/validation curve plots for Phase 1, 2 and 3
+    - Final evaluation reports on the test set:
+        - Per-class metrics table (per_class_metrics.csv)
+        - Per-class F1-score bar plot (per_class_f1_scores.png)
+        - Confusion matrix plot (confusion_matrix_test.png)
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -121,8 +169,6 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
                         samples.append((str(img_path), label))
 
         # Create a dataset from the manually collected samples
-        # We use a base DatasetFolder and provide our own loader and sample list
-        # This ensures the labels are 100% consistent across all splits.
         dataset = datasets.DatasetFolder(
             root=str(phase_dir.parent), # Root is the base data dir
             loader=datasets.folder.default_loader, # Standard image loader
@@ -166,7 +212,7 @@ class ParallelFusionModel(nn.Module):
         # Fusion layer and classifier
         self.fusion_dim = convnext_feature_dim + swin_feature_dim
         
-        # This is a small MLP, which is a robust design
+        # Small MLP classifier head
         self.fusion_classifier = nn.Sequential(
             nn.Linear(self.fusion_dim, 1024),
             nn.BatchNorm1d(1024),
@@ -391,15 +437,18 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
 # Main Execution Block
 if __name__ == '__main__':
     # Configuration
-    base_data_dir = "/scratch/rmkyas002/processed_crops" 
-    CLASS_LIST_FILE = None #'classes_to_include.txt' 
+    
+    # Path to base data directory
+    base_data_dir = 'path/to/directory' 
+    # Path to class list file
+    CLASS_LIST_FILE = None # None to include all classes ; <Class list file name> If specifying classes to include in training and testing
 
     script_location_dir = Path(__file__).parent.resolve()
     output_dir = script_location_dir / "training_outputs_parallel_fusion_3phase"
     os.makedirs(output_dir, exist_ok=True)
     print(f"Checkpoints and plots will be saved in: {output_dir}")
 
-    # --- MODEL & TRAINING CONFIGURATION ---
+    # MODEL & TRAINING CONFIGURATION
     CONVNEXT_MODEL_NAME = 'convnext_small'
     SWIN_MODEL_NAME = 'swin_small_patch4_window7_224' 
 
@@ -407,7 +456,7 @@ if __name__ == '__main__':
     NUM_WORKERS = 1 
     print(f"Using NUM_WORKERS = {NUM_WORKERS} for DataLoaders.")
 
-    # Phase 1: Train only the fusion head (warm-up)
+    # Phase 1: Train only the fusion head 
     LR_PHASE1_HEAD = 1e-3
     EPOCHS_PHASE1 = 15
     CHECKPOINT_PHASE1 = os.path.join(output_dir, 'pollen_fusion_phase1_head_best.pth')
@@ -427,7 +476,7 @@ if __name__ == '__main__':
 
     NUM_CLASSES_TO_USE = None # or an integer to use a subset
 
-    # --- DATA LOADING ---
+    # DATA LOADING
     try:
         dataloaders, dataset_sizes, class_names, num_classes = load_data(
             base_data_dir, 
@@ -441,7 +490,7 @@ if __name__ == '__main__':
         print(f"Error during data loading: {e}")
         exit()
 
-    # --- MODEL CREATION ---
+    # MODEL CREATION 
     pollen_model = create_parallel_fusion_model(
         num_classes=num_classes,
         convnext_model_name=CONVNEXT_MODEL_NAME,
@@ -449,16 +498,15 @@ if __name__ == '__main__':
         pretrained=True
     )
 
-    # --- DEVICE SETUP ---
+    # DEVICE SETUP 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     pollen_model.to(device)
     print(f"Model loaded on device: {device}")
     
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-    # =================================================================================
+
     #   PHASE 1: TRAIN THE FUSION CLASSIFIER HEAD ONLY
-    # =================================================================================
     print(f"\n--- Starting Training Phase 1: Fine-tuning fusion classifier head ---")
     print(f"Epochs: {EPOCHS_PHASE1}, Fusion Head LR: {LR_PHASE1_HEAD}")
 
@@ -480,9 +528,7 @@ if __name__ == '__main__':
     plot_training_history(history_phase1, "Phase 1 Head Training", output_dir=output_dir)
     print("--- Finished Training Phase 1 ---")
     
-    # =================================================================================
     #   PHASE 2: TRAIN LAST STAGE OF BACKBONES + FUSION HEAD
-    # =================================================================================
     print(f"\n--- Starting Training Phase 2: Fine-tuning last backbone stages + head ---")
     print(f"Epochs: {EPOCHS_PHASE2}, Later Layers LR: {LR_PHASE2_LATER_LAYERS}, Head LR: {LR_PHASE2_HEAD}")
     print(f"Loading best weights from Phase 1: {CHECKPOINT_PHASE1}")
@@ -515,9 +561,7 @@ if __name__ == '__main__':
     plot_training_history(history_phase2, "Phase 2 Partial Fine-tuning", output_dir=output_dir)
     print("--- Finished Training Phase 2 ---")
     
-    # =================================================================================
     #   PHASE 3: FULL MODEL FINE-TUNING
-    # =================================================================================
     print(f"\n--- Starting Training Phase 3: Full parallel fusion model fine-tuning ---")
     print(f"Epochs: {EPOCHS_PHASE3}, ConvNext LR: {LR_PHASE3_CONVNEXT}, Swin LR: {LR_PHASE3_SWIN}, Head LR: {LR_PHASE3_HEAD}")
     print(f"Loading best weights from Phase 2: {CHECKPOINT_PHASE2}")
@@ -542,7 +586,7 @@ if __name__ == '__main__':
     plot_training_history(history_phase3, "Phase 3 Full Fine-tuning", output_dir=output_dir)
     print("--- Finished Training Phase 2 ---")
     
-    # --- FINAL EVALUATION ---
+    # FINAL EVALUATION
     print("\n--- Starting Final Evaluation on Test Set ---")
     print(f"Loading best weights from Phase 3 for testing: {CHECKPOINT_PHASE3}")
     pollen_model.load_state_dict(torch.load(CHECKPOINT_PHASE3, map_location=device))

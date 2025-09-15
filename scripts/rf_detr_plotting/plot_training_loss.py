@@ -1,7 +1,24 @@
+"""
+plot_training_loss.py
+
+Description:
+    Plots RFDETR training loss graph
+
+Usage:
+    python plot_training_loss.py
+
+Inputs:
+    - RFDETR log file path (set in script)
+
+Outputs:
+    - Training loss graph for RFDETR model
+"""
+
 import json
 import matplotlib.pyplot as plt
 
-log_file_path = '/home/yash/POL-ID/models/rf-detr/run_1/log.txt'
+# Path to RF-DETR training log file (e.g. log.txt)
+log_file_path = "/path/to/file" 
 
 # Lists to store the data for plotting
 epochs = []

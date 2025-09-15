@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=l40sfree
 #SBATCH --partition=l40s
-#SBATCH --job-name="YOLOX-Pollen-Train"
+#SBATCH --job-name="TrainYOLOXModel"
 #SBATCH --mail-user=rmkyas002@myuct.ac.za
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --nodes=1
@@ -14,45 +14,39 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
-echo "=== Job started at $(date) ==="
+echo "Job started at $(date)"
 echo "Running on node: $(hostname)"
 echo "Job ID: $SLURM_JOB_ID"
 
-# 1. Clean Module and Environment Setup
-echo "--- Setting up modules and environment ---"
+# Clean Module and Environment Setup
 module purge
 module load python/miniconda3-py3.9
 
-# 2. Activate Existing Conda Environment
+# Activate Conda Environment
 ENV_NAME="yolox_mmdet_env"
 source activate $ENV_NAME
 echo "Activated Conda environment: $ENV_NAME"
 
-# 3. Set Python Paths for User Installations
+# Set Python Paths for User Installations
 export PATH="$HOME/.local/bin:$PATH"
 export PYTHONPATH="$HOME/.local/lib/python3.9/site-packages:$PYTHONPATH"
 
-# 4. Verify Critical Packages and GPU Access
-echo "--- Verifying packages ---"
-python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()} | CUDA version: {torch.version.cuda}')"
-
-
-# 6. Define Absolute Paths for Robust Execution
+# Define Absolute Paths for Execution
 MMDET_DIR="/home/rmkyas002/pol_id/detection/mmdetection"
 CONFIG_FILE="/home/rmkyas002/pol_id/detection/configs/yolox.py"
 WORK_DIR="/scratch/rmkyas002/mmdet_outputs/pollen_yolox"
 
-# Add a check to ensure the config file exists before trying to train
+# Ensure config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: Config file not found at $CONFIG_FILE"
     exit 1
 fi
 
-echo "--- Starting MMDetection training ---"
+echo "Starting MMDetection training"
 echo "Using config: $CONFIG_FILE"
 echo "Outputting to work directory: $WORK_DIR"
 
-# 7. Run Training
+# Run YOLOX Training
 # Prepending PYTHONPATH ensures the local mmdetection repo is found first.
 PYTHONPATH="$MMDET_DIR:$PYTHONPATH" \
 python -u $MMDET_DIR/tools/train.py \
@@ -63,5 +57,3 @@ python -u $MMDET_DIR/tools/train.py \
         train_dataloader.persistent_workers=True \
     --launcher="none" \
     --auto-scale-lr
-
-echo "=== Job finished successfully at $(date) ==="

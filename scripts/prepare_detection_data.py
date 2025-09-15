@@ -1,13 +1,31 @@
+"""
+prepare_detection_data.py
+
+Description:
+    Splits detection images into 'train', 'val', and 'test' sets with YOLO folder structure
+
+Usage:
+    python prepare_detection_data.py
+
+Inputs:
+    - Path of directory containing all detection images and label files (set in script: SOURCE_DIR)
+    - Path to target directory for detection dataset - the processed folder will be saved here (set in script: TARGET_ROOT_DIR)
+    - Dataset split ratios (set in script: SPLIT_RATIOS)
+
+Outputs:
+    - YOLO directory structure with 'train', 'val' and 'test' folders according to specified split
+"""
+
 import os
 import shutil
 import random
 from pathlib import Path
 
 # Configuration
-script_directory = Path(__file__).resolve().parent
-BASE_DIR = script_directory.parent / "data" / "detection"
-TARGET_ROOT_DIR = BASE_DIR / "pollen_detector"
-SOURCE_DIR = BASE_DIR 
+# Path to directory containing detection images and label files
+SOURCE_DIR ='path/to/directory'
+# Path to desired dataset root directory (YOLO dataset will be created here)
+TARGET_ROOT_DIR = 'path/to/directory'
 
 # Split Ratios
 SPLIT_RATIOS = {"train": 0.7, "val": 0.15, "test": 0.15}
@@ -107,10 +125,8 @@ def main():
     all_file_pairs = find_and_pair_files(SOURCE_DIR)
     split_and_copy_files(all_file_pairs, yolo_base_path)
 
-    print("\n---------------------------------")
     print("Finished.")
     print(f"Clean dataset is ready in the '{TARGET_ROOT_DIR}' folder.")
-    print("---------------------------------")
 
 
 if __name__ == "__main__":

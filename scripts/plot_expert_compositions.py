@@ -1,12 +1,28 @@
+"""
+plot_expert_compositions.py
+
+Description:
+    Plots expert honey compositions.
+
+Usage:
+    python plot_expert_compositions.py
+
+Inputs:
+    - Expert compositions CSV file (set in script: INPUT_CSV)
+    - Plots output directory path (set in script: OUTPUT_DIR)
+
+Outputs:
+    - Bar graphs illustrating expert compositions for each honey
+"""
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-# --- Config ---
-INPUT_CSV = "/home/yash/POL-ID/outputs/expert_compositions.csv"  # Path to the CSV file
-OUTPUT_DIR = "/home/yash/POL-ID/outputs/plots/expert_composition_plots"  # Folder to save the graphs
-# --- End Config ---
+# Config
+INPUT_CSV = '/path/to/file'  # Path to the CSV file
+OUTPUT_DIR = 'path/to/directory'  # Folder to save the graphs
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
