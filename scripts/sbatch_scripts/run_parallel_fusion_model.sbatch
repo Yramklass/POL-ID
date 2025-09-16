@@ -1,8 +1,27 @@
 #!/bin/sh
 
+#==============================================================================
+# SBATCH SCRIPT FOR RUNNING THE PARALLEL FUSION TRAINING SCRIPT
+#
+# Description:
+#   This script submits a job to the Slurm workload manager to run parallel 
+#   fusion training and evaluation script. It sets up the required
+#   Conda environment, navigates to the project directory, and executes
+#   the main dispatcher script 'parallel_fusion_model.py'.
+#
+# Usage:
+#   sbatch run_parallel_fusion_model.sbatch
+#
+# Notes:
+#   Ensure the Conda environment 'classification_env' exists and has all
+#   necessary packages installed. This environment can be created using
+#   'classification_environment.yaml'.
+#==============================================================================
+
+# SBATCH Directives
 #SBATCH --account=compsci 
 #SBATCH --job-name="POL_ID_Parallel_Fusion" 
-#SBATCH --mail-user=rmkyas002@myuct.ac.za
+#SBATCH --mail-user=example@mail.com
 #SBATCH --mail-type=BEGIN,END,FAIL 
                                      
 # Resource Allocation
@@ -14,6 +33,16 @@
 # Output and error files
 #SBATCH --output=parallel_fusion_output_%j.out
 #SBATCH --error=parallel_fusion_error_%j.err
+
+# Configuration
+# Define the name of your Conda environment
+CONDA_ENV_NAME="classification_env"
+# Define the main Python script to be executed
+PYTHON_SCRIPT="parallel_fusion_model.py"
+# The script will run in the directory where you submit the job
+# (no need to hardcode a path). If your script is elsewhere, define a relative path.
+# For example: TARGET_DIR="${SLURM_SUBMIT_DIR}/src"
+TARGET_DIR="${SLURM_SUBMIT_DIR}"
 
 # Environment Setup
 echo "Job started on $(hostname) at $(date)"
@@ -33,8 +62,8 @@ module load python/miniconda3-py3.9
 echo "Modules loaded."
 
 # Activate Conda environment
-echo "Activating Conda environment: pollen_classification_env"
-source activate pollen_classification_env
+echo "Activating Conda environment: $CONDA_ENV_NAME"
+source activate "$CONDA_ENV_NAME"
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate Conda environment."
     exit 1
@@ -43,7 +72,6 @@ echo "Conda environment activated. Current Conda env: $CONDA_DEFAULT_ENV"
 echo "Python path: $(which python)"
 
 # Navigate to Script Directory
-TARGET_DIR=~/pol_id/classification/src/parallel_fusion
 echo "Navigating to script directory: $TARGET_DIR"
 cd $TARGET_DIR
 if [ $? -ne 0 ]; then
@@ -53,7 +81,6 @@ fi
 echo "Current directory after cd: $(pwd)"
 
 # Running Python Script for Parallel Fusion Model
-PYTHON_SCRIPT="parallel_fusion_model.py" 
 echo "Running Python script: $PYTHON_SCRIPT"
 echo "Start time: $(date)"
 

@@ -1,19 +1,50 @@
 #!/bin/sh
 
+#==============================================================================
+# SBATCH SCRIPT FOR RUNNING THE RAYTUNE PARALLEL FUSION TRAINING SCRIPT
+#
+# Description:
+#   This script submits a job to the Slurm workload manager to run Raytune parallel 
+#   fusion training and evaluation script. It sets up the required
+#   Conda environment, navigates to the project directory, and executes
+#   the main dispatcher script 'parallel_fusion_raytune.py'.
+#
+# Usage:
+#   sbatch run_parallel_fusion_ray.sbatch
+#
+# Notes:
+#   Ensure the Conda environment 'classification_env' exists and has all
+#   necessary packages installed. This environment can be created using
+#   'classification_environment.yaml'.
+#==============================================================================
+
+# SBATCH Directives
 #SBATCH --account=compsci 
 #SBATCH --job-name="POL_ID_RayTune_HPO" 
-#SBATCH --mail-user=rmkyas002@myuct.ac.za
+#SBATCH --mail-user=example@mail.com
 #SBATCH --mail-type=BEGIN,END,FAIL 
                                      
 # Resource Allocation 
 #SBATCH --account=l40sfree 
 #SBATCH --partition=l40s 
 #SBATCH --nodes=1 --ntasks=1 --gres=gpu:l40s:1 
-#SBATCH --time=48:00:00  # Extended time for hyperparameter search
+#SBATCH --time=48:00:00  
 
 # Output and error files
 #SBATCH --output=raytune_hpo_output_%j.out
 #SBATCH --error=raytune_hpo_error_%j.err
+
+# Configuration
+# Define the name of your Conda environment
+CONDA_ENV_NAME="classification_env"
+# Define the main Python script to be executed
+PYTHON_SCRIPT="parallel_fusion_model.py"
+# The script will run in the directory where you submit the job
+# (no need to hardcode a path). If your script is elsewhere, define a relative path.
+# For example: TARGET_DIR="${SLURM_SUBMIT_DIR}/src"
+TARGET_DIR="${SLURM_SUBMIT_DIR}"
+# Path to output directory
+RESULTS_DIR="./ray_results"
 
 # Environment Setup
 echo "Job started on $(hostname) at $(date)"
@@ -33,8 +64,8 @@ module load python/miniconda3-py3.9
 echo "Modules loaded."
 
 # Activate Conda environment
-echo "Activating Conda environment: pollen_classification_env"
-source activate pollen_classification_env
+echo "Activating Conda environment: $CONDA_ENV_NAME"
+source activate "$CONDA_ENV_NAME"
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate Conda environment."
     exit 1
@@ -58,7 +89,6 @@ echo "Ray temporary directory: $RAY_TMPDIR"
 
 
 # Navigate to Script Directory
-TARGET_DIR=~/pol_id/classification/src/parallel_fusion
 echo "Navigating to script directory: $TARGET_DIR"
 cd $TARGET_DIR
 if [ $? -ne 0 ]; then
@@ -69,13 +99,11 @@ echo "Current directory after cd: $(pwd)"
 
 
 # Create results directory
-RESULTS_DIR="./ray_results"
 mkdir -p $RESULTS_DIR
 echo "Results will be saved to: $RESULTS_DIR"
 
 
 # Running Ray Tune Hyperparameter Optimization
-PYTHON_SCRIPT="parallel_fusion_raytune.py"  
 echo "Running Ray Tune hyperparameter optimization: $PYTHON_SCRIPT"
 echo "Start time: $(date)"
 

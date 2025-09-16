@@ -208,7 +208,7 @@ class ParallelFusionModel(nn.Module):
 
         self.fusion_dim = convnext_feature_dim + swin_feature_dim
         
-        ### Ray Tune Change: Use the dropout_rate from the config ###
+        # Ray Tune uses the dropout_rate from the config 
         self.fusion_classifier = nn.Sequential(
             nn.Linear(self.fusion_dim, 1024),
             nn.BatchNorm1d(1024),

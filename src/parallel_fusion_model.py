@@ -92,7 +92,7 @@ def get_data_transforms(img_size=IMG_SIZE):
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),
         ]),
-        # Keep validation and test transforms simple
+        # Simple validation and test transforms 
         'val': transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(IMG_SIZE),
@@ -163,7 +163,7 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
             class_dir = phase_dir / class_name
             if class_dir.is_dir():
                 label = class_to_idx[class_name]
-                for img_path in class_dir.glob('*'): # You might want to filter for .jpg, .png, etc.
+                for img_path in class_dir.glob('*'): 
                     if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tif']:
                         samples.append((str(img_path), label))
 
@@ -446,7 +446,6 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
             plt.close()
 
     except Exception as e:
-        # Catch any error during the report generation and print a warning
         print(f"\nWarning: Could not generate or save per-class metrics.")
         print(f"   Error: {e}")
         print("   Skipping per-class report and plot, but continuing with confusion matrix...")
@@ -511,7 +510,8 @@ if __name__ == '__main__':
     EPOCHS_PHASE2 = 50 
     CHECKPOINT_PHASE2 = os.path.join(output_dir, 'pollen_parallel_fusion_phase2_full_best.pth')
 
-    NUM_CLASSES_TO_USE = None # or None to use all
+    NUM_CLASSES_TO_USE = None # None to use all classes 
+    
     # Load Data
     try:
     
@@ -554,7 +554,8 @@ if __name__ == '__main__':
     print(f"Parallel Fusion Model loaded on device: {device}")
 
     # Unweighted loss function
-    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1) # For unweighted cross entropy loss
+    # criterion = nn.CrossEntropyLoss(label_smoothing=0.1) 
+    
     # Calculate class weights for weighted loss function 
     print("\nCalculating class weights to handle imbalance...")
     class_counts = np.bincount(dataloaders['train'].dataset.targets)
@@ -564,8 +565,8 @@ if __name__ == '__main__':
 
     print(f"Class weights calculated and moved to {device}.")
 
-
-    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1) # For weighted cross entropy loss
+    # Weighted cross entropy loss function
+    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1) 
 
     # Phase 1: Train the fusion classifier head 
     print(f"\n--- Starting Training Phase 1: Fine-tuning fusion classifier head ---")
@@ -607,7 +608,7 @@ if __name__ == '__main__':
     print(f"Epochs: {EPOCHS_PHASE2}, ConvNext LR: {LR_PHASE2_CONVNEXT}, Swin LR: {LR_PHASE2_SWIN}, Fusion Head LR: {LR_PHASE2_FUSION_HEAD}")
 
     print(f"Loading best weights from Phase 1: {CHECKPOINT_PHASE1}")
-    # Ensure to use map_location in case the model was saved on GPU and loading on CPU or vice-versa
+    # Using map_location in case the model was saved on GPU and loading on CPU or vice-versa
     pollen_model.load_state_dict(torch.load(CHECKPOINT_PHASE1, map_location=device, weights_only=True))
     pollen_model.to(device)
 

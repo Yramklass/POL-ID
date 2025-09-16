@@ -1,19 +1,43 @@
-#!/bin/sh
+#!/bin/bash
 
-#SBATCH --account=compsci 
-#SBATCH --job-name="POL_ID_Full_Pipeline" 
-#SBATCH --mail-user=rmkyas002@myuct.ac.za
-#SBATCH --mail-type=BEGIN,END,FAIL 
-                                     
-# Resource Allocation
-#SBATCH --account=l40sfree 
-#SBATCH --partition=l40s 
-#SBATCH --nodes=1 --ntasks=1 --gres=gpu:l40s:1 
-#SBATCH --time=48:00:00 
+#==============================================================================
+# SBATCH SCRIPT FOR RUNNING THE FULL POL-ID PIPELINE ON ALL HONEYS
+#
+# Description:
+#   This script submits a job to the Slurm workload manager to run the script that  
+#   executes the full POL-ID honey authentication pipeline on all honey sample
+#   folders. It sets up the required Conda environment, navigates to the 
+#   project directory, and executes the main dispatcher script 'run_all_pipelines.py'.
+#
+# Usage:
+#   sbatch run_all_pipelines.sbatch
+#
+# Notes:
+#   Ensure the Conda environment 'full_pipeline_env' exists and has all
+#   necessary packages installed. This environment can be created using 
+#   'full_pipeline_environment.yaml'. 
+#==============================================================================
 
-# Output and error files
-#SBATCH --output=full_pipeline_output_%j.out
-#SBATCH --error=full_pipeline_error_%j.err
+# SBATCH Directives 
+#SBATCH --job-name="POL_ID_Full_Pipeline"
+#SBATCH --account=compsci
+#SBATCH --partition=l40s
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:l40s:1
+#SBATCH --time=48:00:00
+#SBATCH --mail-user=example@mail.com
+#SBATCH --mail-type=BEGIN,END,FAIL
+
+# Configuration
+# Define the name of your Conda environment
+CONDA_ENV_NAME="full_pipeline_env"
+# Define the main Python script to be executed
+PYTHON_SCRIPT="run_all_pipelines.py"
+# The script will run in the directory where you submit the job
+# (no need to hardcode a path). If your script is elsewhere, define a relative path.
+# For example: TARGET_DIR="${SLURM_SUBMIT_DIR}/src"
+TARGET_DIR="${SLURM_SUBMIT_DIR}"
 
 # Environment Setup
 echo "Job started on $(hostname) at $(date)"
@@ -33,8 +57,8 @@ module load python/miniconda3-py3.9
 echo "Modules loaded."
 
 # Activate Conda environment
-echo "Activating Conda environment: full_pipeline_env"
-source activate full_pipeline_env
+echo "Activating Conda environment:  $CONDA_ENV_NAME"
+source activate "$CONDA_ENV_NAME"
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate Conda environment."
     exit 1
@@ -44,7 +68,6 @@ echo "Python path: $(which python)"
 
 
 # Navigate to Script Directory
-TARGET_DIR=~/pol_id/full_pipeline
 echo "Navigating to script directory: $TARGET_DIR"
 cd $TARGET_DIR
 if [ $? -ne 0 ]; then
@@ -55,7 +78,6 @@ echo "Current directory after cd: $(pwd)"
 
 
 # Running the Pipeline Dispatcher Script
-PYTHON_SCRIPT="run_all_pipelines.py"
 echo "Running Python script: $PYTHON_SCRIPT"
 echo "Start time: $(date)"
 

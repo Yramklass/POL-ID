@@ -1,14 +1,14 @@
 """
-plot_training_loss.py
+plot_final_validation_mAP.py
 
 Description:
-    Plots RFDETR validation mAP graph
+    Plots RFDETR summary validation mAP graph.
 
 Usage:
-    python plot_training_loss.py
+    python plot_final_validation_mAP.py
 
 Inputs:
-    - RFDETR results file path (set in script)
+    - RFDETR results file path (set in script: results_file)
 
 Outputs:
     - Validation mAP graph for RFDETR model

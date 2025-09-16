@@ -8,10 +8,13 @@ Usage:
     python tools/train.py yolox.py
     # or using OpenMIM:
     mim train mmdet yolox.py
+    # For submitting the job to the Slurm workload manager
+    sbatch run_yolox_model.sbatch
 
 Inputs:
-    - Classification image directory (defined in dataset config)
-    - Model and training hyperparameters (defined here)
+    - Classification image directory (set in script: data_root)
+    - YOLOX base config file path (set in script: _base_)
+    - Model and training hyperparameters (set in script)
 
 Outputs:
     - Model checkpoints in work_dirs/
@@ -20,10 +23,12 @@ Outputs:
 
 
 # Model Configuration
-_base_ = '/home/rmkyas002/pol_id/detection/mmdetection/configs/yolox/yolox_s_8xb8-300e_coco.py'
+# Path to yolox base config file (e.g. yolox_s_8xb8-300e_coco.py)
+_base_ = 'path/to/file'
 
 # Dataset Configuration
-data_root = '/scratch/rmkyas002/mmdetection_data/'
+# Path to detection dataset (MMDetection format)
+data_root = 'path/to/directory'
 class_name = ('pollen',)
 metainfo = dict(classes=class_name)
 

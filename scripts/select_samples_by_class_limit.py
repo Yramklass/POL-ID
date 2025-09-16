@@ -2,7 +2,8 @@
 select_samples_by_class_limit.py
 
 Description:
-    Creates a list of taxa to be included. Includes <= the maximum number of taxa specified. Contains the maximum number of honeys possible while including all taxa from each included honey.
+    Creates a list of taxa to be included. Number of taxa included is <= the number of taxa specified. 
+    Contains the maximum number of honeys possible while including all taxa from each included honey.
 
 Usage:
     python select_samples_by_class_limit.py <expert_compositions.csv> <max_taxa>
@@ -41,7 +42,7 @@ def select_samples_with_class_limit(csv_path, max_classes, output_file=None):
     selected_samples = []
     included_taxa = set()
 
-    # Sort samples by how many unique taxa they have (descending)
+    # Sort samples by how many unique taxa they have 
     sorted_samples = sorted(sample_to_taxa.items(), key=lambda x: len(x[1]))
 
     for sample, taxa_set in sorted_samples:

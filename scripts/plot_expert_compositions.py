@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-# Config
+# Configuration
 INPUT_CSV = '/path/to/file'  # Path to the CSV file
 OUTPUT_DIR = 'path/to/directory'  # Folder to save the graphs
 

@@ -344,7 +344,6 @@ def evaluate_model(model, dataloader, device, class_names, criterion=None, outpu
             plt.close()
 
     except Exception as e:
-        # Catch any error during the report generation and print a warning
         print(f"\nWarning: Could not generate or save per-class metrics.")
         print(f"   Error: {e}")
         print("   Skipping per-class report and plot, but continuing with confusion matrix...")

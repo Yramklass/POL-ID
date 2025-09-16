@@ -3,7 +3,7 @@ train_rf_detr_model.py
 
 Description:
     Initializes and trains a small RF-DETR (Real-time DEtection TRansformer) 
-    model for pollen grain object detection. 🎯
+    model for pollen grain object detection. 
 
     This script acts as a high-level launcher for the training process, which 
     is encapsulated within the `RFDETRSmall` class. It sets the dataset and 

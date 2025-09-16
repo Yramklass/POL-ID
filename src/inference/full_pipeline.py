@@ -9,6 +9,8 @@ Description:
 
 Usage:
     python full_pipeline.py <slides_directory>
+    # For submitting the job to the Slurm workload manager
+    sbatch run_full_pipeline.sbatch
 
 Inputs:
     - slides_directory (command-line argument: path to classification images)
@@ -185,7 +187,7 @@ for file in tqdm(os.listdir(SLIDES_DIR)):
     batch_tensors = []
     batch_images = []
 
-    # 1. Collect all valid crops from the image
+    # Collect all valid crops from the image
     for crop_img, det_conf in all_crops:
         if det_conf >= DETECTOR_CONF_THRESHOLD:
             image_pil = Image.fromarray(crop_img)
@@ -193,7 +195,7 @@ for file in tqdm(os.listdir(SLIDES_DIR)):
             batch_tensors.append(input_tensor)
             batch_images.append(crop_img)
 
-    # 2. If there are valid crops, process them as a single batch
+    # If there are valid crops, process them as a single batch
     if batch_tensors:
         input_batch = torch.stack(batch_tensors)
         with torch.no_grad():
@@ -201,7 +203,7 @@ for file in tqdm(os.listdir(SLIDES_DIR)):
             probs = torch.softmax(logits, dim=1)
             confidences, pred_classes = torch.max(probs, dim=1)
 
-        # 3. Iterate through the batch results
+        # Iterate through the batch results
         for i in range(len(confidences)):
             conf = confidences[i].item()
             pred_class = pred_classes[i].item()

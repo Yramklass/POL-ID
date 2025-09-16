@@ -8,6 +8,8 @@ Usage:
     python tools/train.py rtmdet.py
     # or using OpenMIM:
     mim train mmdet rtmdet.py
+    # For submitting the job to the Slurm workload manager
+    sbatch run_rtmdet_model.sbatch
 
 Inputs:
     - Classification image directory (defined in dataset config)
@@ -17,7 +19,6 @@ Outputs:
     - Model checkpoints in work_dirs/
     - Training logs in work_dirs/
 """
-
 
 # Inherit from the base RTMDet-tiny config
 _base_ = '/home/rmkyas002/pol_id/detection/mmdetection/configs/rtmdet/rtmdet_s_8xb32-300e_coco.py'

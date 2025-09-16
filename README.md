@@ -60,7 +60,7 @@ The system aggregates the results from the high-confidence classifications and t
 * The predicted honey type (e.g., Monofloral Eucalyptus, Multifloral Fynbos).
 * A complete list of identified pollen species and their absolute counts.
 * The percentage ratio of each pollen species.
-* Counts for each cluster of unidentified pollen.
+* Counts and exemplar images for each cluster of unidentified pollen.
 
 ---
 
@@ -155,7 +155,7 @@ This repository contains scripts for the core pipeline, model training, data pre
 ### Analysis & Visualization Scripts
 * `plot_comparisons.py`: Generates plots comparing the model's output compositions against the expert-defined compositions.
 * `plot_expert_compositions.py`: Visualizes the ground-truth honey compositions from the expert data.
-* `plot_training_loss.py`: Plots training loss and validation mAP for DETR models.
+* `plot_training_loss.py` / `plot_final_validation_mAP`: Plots training loss and validation mAP for DETR models.
 * `taxon_data_analysis.py`: Plots F1-score vs. number of image stacks for each pollen taxon.
 
 ---

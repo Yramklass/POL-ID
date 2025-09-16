@@ -19,12 +19,12 @@ The `fix_detection_labels.py` script was created to solve this. It iterates thro
 ### Problem: Data Leakage from Image Stacks
 The classification dataset consists of "stacks" of images, where each stack contains multiple pictures of the *same pollen grains* taken at different focal depths. A standard random split would be invalid, as it could place images of the same grain in both the training and testing sets, artificially inflating performance metrics.
 
-### Solution: Stack-Level Splitting and the `_box` Convention ⚠️
+### Solution: Stack-Level Splitting and the `_box` Convention 
 To prevent this, we implemented a **stack-level split**. This ensures that all images from a single stack are assigned exclusively to one set (either train, validation, or test).
 
 To identify the boundaries of a stack, we relied on a specific file naming convention from the original annotators:
 * The last image of every annotated stack was named with a `_box` suffix (e.g., `IMG_1234_box.jpg`). This was ensured through manual inspection and renaming/rearranging files where necessary.
-* The `crop_pollen.py` script uses the presence of a `_box` file to confirm the end of one stack and the beginning of the next.
+* The `crop_pollen.py` script uses the presence of a `_box` file to confirm the end of one stack and the beginning of the next. Pollens from these files are not cropped and extracted.
 
 **For supplementary data that did not have this `_box` file**, we had to artificially recreate it. This was done by copying the last image in a stack and renaming the copy to include the `_box` suffix. This is a critical but non-elegant step required to make new data compatible with our existing scripts.
 

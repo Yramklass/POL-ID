@@ -16,7 +16,7 @@ Description:
         unfrozen and trained end-to-end with differential learning rates.
 
     The script handles data loading with augmentations, model creation, 
-    the two-phase training loop, and a comprehensive final evaluation on 
+    the three-phase training loop, and a comprehensive final evaluation on 
     the test set.
 
 Usage:
@@ -93,7 +93,7 @@ def get_data_transforms(img_size=IMG_SIZE):
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
             transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0),
         ]),
-        # Keep validation and test transforms simple
+        # Simple validation and test transforms
         'val': transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(IMG_SIZE),
@@ -164,7 +164,7 @@ def load_data(base_data_dir, batch_size=32, img_size=224, num_workers=1, num_cla
             class_dir = phase_dir / class_name
             if class_dir.is_dir():
                 label = class_to_idx[class_name]
-                for img_path in class_dir.glob('*'): # You might want to filter for .jpg, .png, etc.
+                for img_path in class_dir.glob('*'):
                     if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.tif']:
                         samples.append((str(img_path), label))
 
@@ -506,7 +506,7 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
 
-    #   PHASE 1: TRAIN THE FUSION CLASSIFIER HEAD ONLY
+    # PHASE 1: TRAIN THE FUSION CLASSIFIER HEAD ONLY
     print(f"\n--- Starting Training Phase 1: Fine-tuning fusion classifier head ---")
     print(f"Epochs: {EPOCHS_PHASE1}, Fusion Head LR: {LR_PHASE1_HEAD}")
 
@@ -528,7 +528,7 @@ if __name__ == '__main__':
     plot_training_history(history_phase1, "Phase 1 Head Training", output_dir=output_dir)
     print("--- Finished Training Phase 1 ---")
     
-    #   PHASE 2: TRAIN LAST STAGE OF BACKBONES + FUSION HEAD
+    # PHASE 2: TRAIN LAST STAGE OF BACKBONES + FUSION HEAD
     print(f"\n--- Starting Training Phase 2: Fine-tuning last backbone stages + head ---")
     print(f"Epochs: {EPOCHS_PHASE2}, Later Layers LR: {LR_PHASE2_LATER_LAYERS}, Head LR: {LR_PHASE2_HEAD}")
     print(f"Loading best weights from Phase 1: {CHECKPOINT_PHASE1}")
@@ -561,7 +561,7 @@ if __name__ == '__main__':
     plot_training_history(history_phase2, "Phase 2 Partial Fine-tuning", output_dir=output_dir)
     print("--- Finished Training Phase 2 ---")
     
-    #   PHASE 3: FULL MODEL FINE-TUNING
+    # PHASE 3: FULL MODEL FINE-TUNING
     print(f"\n--- Starting Training Phase 3: Full parallel fusion model fine-tuning ---")
     print(f"Epochs: {EPOCHS_PHASE3}, ConvNext LR: {LR_PHASE3_CONVNEXT}, Swin LR: {LR_PHASE3_SWIN}, Head LR: {LR_PHASE3_HEAD}")
     print(f"Loading best weights from Phase 2: {CHECKPOINT_PHASE2}")

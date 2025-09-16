@@ -1,8 +1,22 @@
 #!/bin/sh
 
+#==============================================================================
+# SBATCH SCRIPT FOR RUNNING THE DEIMKIT TRAINING SCRIPT
+#
+# Description:
+#   This script submits a job to the Slurm workload manager to run the
+#   DEIMKit training script. It sets up the required
+#   Conda environment, navigates to the project directory, and executes
+#   the main dispatcher script 'deimkit_training.py'.
+#
+# Usage:
+#   sbatch run_DEIM_model.sbatch
+#==============================================================================
+
+# SBATCH Directives 
 #SBATCH --account=compsci
 #SBATCH --job-name="TrainDEIMModel"
-#SBATCH --mail-user=rmkyas002@myuct.ac.za
+#SBATCH --mail-user=example@mail.com
 #SBATCH --mail-type=BEGIN,END,FAIL
 
 # Resource Allocation
@@ -14,6 +28,12 @@
 # Output and error files
 #SBATCH --output=detector_train_output_%j.out
 #SBATCH --error=detector_train_error_%j.err
+
+# Configuration 
+# Define the name of your Conda environment
+CONDA_ENV_NAME="deim"
+# Define the main Python script to be executed
+PYTHON_SCRIPT="deimkit_training.py"
 
 # Environment Setup
 echo "Job started on $(hostname) at $(date)"
@@ -31,8 +51,8 @@ module load python/miniconda3-py3.11
 echo "Modules loaded."
 
 # Create Conda environment 
-echo "Creating Conda environment: deim"
-conda create -n deim python=3.11.9
+echo "Creating Conda environment: $CONDA_ENV_NAME"
+conda create -n "$CONDA_ENV_NAME" python=3.11.9
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to create Conda environment."
     exit 1
@@ -41,8 +61,8 @@ echo "Conda environment created."
 
 
 # Activate Conda environment
-echo "Activating Conda environment: deim"
-source activate deim
+echo "Activating Conda environment: $CONDA_ENV_NAME"
+source activate "$CONDA_ENV_NAME"
 if [ $? -ne 0 ]; then
     echo "ERROR: Failed to activate Conda environment."
     exit 1
@@ -64,6 +84,6 @@ pip install --user git+https://github.com/dnth/DEIM.git@v0.2.1
 
 
 # DEIMKIT - Python Wrapper for DEIM Training
-CUDA_VISIBLE_DEVICES=0 torchrun --master_port=7778 --nproc_per_node=1 deimkit_training.py
+CUDA_VISIBLE_DEVICES=0 torchrun --master_port=7778 --nproc_per_node=1 "$PYTHON_SCRIPT"
 
 echo "Training finished."

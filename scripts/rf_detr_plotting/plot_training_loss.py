@@ -8,7 +8,7 @@ Usage:
     python plot_training_loss.py
 
 Inputs:
-    - RFDETR log file path (set in script)
+    - RFDETR log file path (set in script: log_file_path)
 
 Outputs:
     - Training loss graph for RFDETR model

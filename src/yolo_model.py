@@ -2,7 +2,7 @@
 yolo_model.py
 
 Description:
-    Trains and evaluates a YOLOv8 object detection model for pollen grain 
+    Trains and evaluates a YOLO object detection model for pollen grain 
     detection using the `ultralytics` framework. 
 
     This script provides a streamlined workflow:
@@ -134,7 +134,7 @@ def main():
     print(f"  Recall (Box):    {metrics.box.r[0]:.4f}")    # Recall for the 'pollen' class
     print("----------------------------\n")
     print(f"Evaluation metrics and plots saved in: {metrics.save_dir}")
-    print("Full process complete!")
+    print("Full process complete.")
 
 
 if __name__ == '__main__':
